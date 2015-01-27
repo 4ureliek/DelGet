@@ -1,5 +1,5 @@
 ####################################################################################################################
-# CONFIGURATION FILE FOR: Deletions_pipeline.pl
+# CONFIGURATION FILE FOR: DelGet.pl
 # version of the pipeline = 3.7
 #
 # if you never used this script, type: perl DelGet.pl -h 
