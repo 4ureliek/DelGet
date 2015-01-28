@@ -246,7 +246,7 @@ until ($oktot == $randtot) { #ie total nb defined in config file
 	# 1) call script DelGet--1--get_regions.pl
 	print "\n----------------------------------------------------------\nErrors or verbose from DelGet--1--get_regions.pl...\n";
 	print LOG "----------------------------------------------------------\n   Running DelGet--1--get_regions.pl...\n";
-	system "perl $$BIN/DelGet--1--get_regions.pl $config_file $pathtemp";
+	system "perl $BIN/DelGet--1--get_regions.pl $config_file $pathtemp";
 	print LOG "   ...done\n----------------------------------------------------------\n\n";
 	print "\n";
 	
@@ -254,7 +254,7 @@ until ($oktot == $randtot) { #ie total nb defined in config file
 	my $input = "$pathtemp/_OKregions.posi.tab";
 	print "\n----------------------------------------------------------\nErrors or verbose from DelGet--2--get-sev-seq_align.pl...\n";
 	print LOG "----------------------------------------------------------\nRunning DelGet--2--get-sev-seq_align.pl...\n";
-	system "perl $$BIN/DelGet--2--get-sev-seq_align.pl $config_file $pathtemp $input";
+	system "perl $BIN/DelGet--2--get-sev-seq_align.pl $config_file $pathtemp $input";
 	my $align_dir = "$pathtemp/_ExtractAlign";
 	print LOG "   -> see files in $align_dir\n   ...done\n----------------------------------------------------------\n\n";
 	
@@ -278,7 +278,7 @@ until ($oktot == $randtot) { #ie total nb defined in config file
 		if ("@masked" =~ /.*.fa\.masked.*/) { #rewrite, for each masking [if relevant]		
 			print LOG "        Rewriting .fa.align.fa files with masked regions as lowercases...\n";
 			print "\n --- Verbose and errors for rewriting .fa.align.fa files with masked regions as lowercases...\n";
-			system "perl $$BIN/fasta-aln_RW-with-lc_from-RMout.pl $align_dir";
+			system "perl $BIN/fasta-aln_RW-with-lc_from-RMout.pl $align_dir";
 		} else {
 			print LOG "        No masked sequences for $masking_folders[$i] masking, skip moving files and gap analysis\n\n";
 		}
@@ -293,7 +293,7 @@ until ($oktot == $randtot) { #ie total nb defined in config file
 		if ("@masked" =~ /.*.fa\.masked.*/) { #analyze masked, for each masking 
 			print "\n --- Errors for analyzing gaps in masked sequences ($masking_folders[$i])...\n";
 			print LOG "        Analyzing gaps...\n";
-			system "perl $$BIN/DelGet--3--gapfreq_lc-uc.pl $dir_out $IDgen1,$IDgen2,$IDgen3 > $dir_out/gapfreq.lcuc.log";
+			system "perl $BIN/DelGet--3--gapfreq_lc-uc.pl $dir_out $IDgen1,$IDgen2,$IDgen3 > $dir_out/gapfreq.lcuc.log";
 			print LOG "        ...done\n\n";
 		}
 	}
@@ -304,7 +304,7 @@ until ($oktot == $randtot) { #ie total nb defined in config file
 	print "\n----------------------------------------------------------\nErrors or verbose from gap analysis in ALL sequences...\n";
 	unless (-f "$align_dir/gapfreq.log") {
 		print LOG "----------------------------------------------------------\nAnalyzing all gaps...\n";
-		system "perl $$BIN/DelGet--3--gapfreq.pl $align_dir $IDgen1,$IDgen2,$IDgen3 > $align_dir/gapfreq.log";
+		system "perl $BIN/DelGet--3--gapfreq.pl $align_dir $IDgen1,$IDgen2,$IDgen3 > $align_dir/gapfreq.log";
 		print LOG "...done\n----------------------------------------------------------\n\n";
 	} else {
 		print LOG "----------------------------------------------------------\nAnalysis of all gaps already done\n   ...done\n   ----------------------------------------------------------\n\n";
