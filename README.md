@@ -9,7 +9,8 @@ All options and paths are set in the file DelGet--0--CONFIG.pl (simple text file
 	========================================================
 	
 	REQUIREMENTS:
-	   Perl Array::Unique = https://metacpan.org/source/SZABGAB/Array-Unique-0.08/lib/Array/Unique.pm
+	   (already in Lib) Perl Array::Unique = https://metacpan.org/source/SZABGAB/Array-Unique-0.08/lib/Array/Unique.pm
+	   (already in Lib) Perl Array::Transpose::Ragged = https://metacpan.org/pod/Array::Transpose::Ragged
 	   Blat = http://genome.ucsc.edu/FAQ/FAQblat.htmlblat3
 	   Muscle = http://www.drive5.com/muscle/downloads.htm
 	   Kalign = http://msa.sbc.su.se/cgi-bin/msa.cgi?mode=downloads
