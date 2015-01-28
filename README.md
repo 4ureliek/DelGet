@@ -6,11 +6,18 @@ All options and paths are set in the file DelGet--0--CONFIG.pl (simple text file
 	Usage     : perl DelGet.pl <config_file>
 	Typically : perl DelGet.pl DelGet--0--CONFIG_manipname.pl
 
+	========================================================
+	
+	REQUIREMENTS:
+	   Perl Array::Unique = https://metacpan.org/source/SZABGAB/Array-Unique-0.08/lib/Array/Unique.pm
+	   Blat = http://genome.ucsc.edu/FAQ/FAQblat.htmlblat3
+	   Muscle = http://www.drive5.com/muscle/downloads.htm
+	   Kalign = http://msa.sbc.su.se/cgi-bin/msa.cgi?mode=downloads
+
 	========================================================   
 	 	
 	PURPOSE : 
 	   General question = get medium size deletion rates
-	   Requires the UCSC BLAT stand alone software, see http://genome.ucsc.edu/FAQ/FAQblat.htmlblat3
 	   Written for 3 species (referred as 1, 2 and 3)
 		  1) From a \"reference\" genome (=1), get random regions as: [anchor1]=====Genome1.region=====[anchor2]
 		  2) Blat anchor1 and anchor2 sequences agains genome2 and genome3
