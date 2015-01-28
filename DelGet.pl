@@ -59,9 +59,9 @@ use Bio::DB::Fasta;
 use Bio::Seq;
 use Bio::SeqIO;
 use vars qw($BIN);
-use Cwd ();
+use Cwd 'abs_path';
 BEGIN { 	
-	$BIN = Cwd::cwd();
+	$BIN = abs_path($0);
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Unique;
