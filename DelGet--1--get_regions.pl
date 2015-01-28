@@ -135,7 +135,7 @@ my $gapgen_ref;
 print LOG "\t--- Dealing with...\n";
 for (my $f=0;$f<=$#gapfiles;$f++) {
 	print LOG "\t    $gapfiles[$f]...\n";
-	$gapgen_ref = Deletions::get_gaps($f,$gapfiles[$f]); #access to gaps of a genome = $gapgen_ref->{$f}, with $f=0 for gen1 etc
+	$gapgen_ref = DelGet::get_gaps($f,$gapfiles[$f]); #access to gaps of a genome = $gapgen_ref->{$f}, with $f=0 for gen1 etc
 }
 print LOG "\t--- done\n";
 
@@ -146,15 +146,15 @@ print LOG "\t--- done\n";
 print LOG "\n---GET GENOME1 (OUTGROUP) LENGTHS & INFOS----------------------------\n";
 
 #Extract filename
-my $genone_name = Deletions::filename($genone);
+my $genone_name = DelGet::filename($genone);
 
 print LOG "\t--- Getting total length of scaffolds to consider + nb of randomizations per scaffold in hash\n";
 close LOG;
 #Get total length 
-my ($totlength) = Deletions::get_tot_len_filtered($genone,$log,$minlen);
+my ($totlength) = DelGet::get_tot_len_filtered($genone,$log,$minlen);
 #Getnb of random positions to get per sequence in hash [reference]
 my $infofile = "$path/$genone_name.rlen$anch_dist.alen$anch_len.$randtot"."rand.infos.tab";
-my ($geninfos_ref,@dbIDs) = Deletions::get_all_len_filtered($genone,$log,$minlen,$totlength,$infofile,$randtot);
+my ($geninfos_ref,@dbIDs) = DelGet::get_all_len_filtered($genone,$log,$minlen,$totlength,$infofile,$randtot);
 open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
 print LOG "\t--- done\n";
 
@@ -174,7 +174,7 @@ print LOG "\n---STARTING LOOPS-----------------------------------------\n";
 my $prev_reg = "$pathtemp/_OKregions.previous-coords.tab";
 close LOG;
 unless ($if_OKregions eq "no") {
-	$r = Deletions::get_previous_OKreg($path,$r,$OKregions,$log,$c,$prev_reg);
+	$r = DelGet::get_previous_OKreg($path,$r,$OKregions,$log,$c,$prev_reg);
 } else {
 	open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
 	print LOG "\t--- NO previous output file has been defined in CONFIG file\n";
@@ -222,7 +222,7 @@ my %inversions = ();
 #Now loop
 until ($ok == $randnb) { #big loop
 	#re open where previous positions are and load them => avoid overlaps [hash ref]
-	my $alreadyrand_full_ref = Deletions::load_previous_OKreg($prev_reg);
+	my $alreadyrand_full_ref = DelGet::load_previous_OKreg($prev_reg);
 	
 	#keep in mind when something was already randomized to avoid overlaps => reinitialize every time there is randomization
 	my %randomized_ends = ();
@@ -260,13 +260,13 @@ until ($ok == $randnb) { #big loop
 		#3) avoid overlap with any already picked region
 		my $ifnextrand = "no";
 		# - first, do not overlap current randomizations
-		($ifnextrand) = Deletions::check_overlap_reg($randomized_ends{$rdmID},$anch_len,$anch_dist,$three_end,$five_start) if (exists $randomized_ends{$rdmID});
+		($ifnextrand) = DelGet::check_overlap_reg($randomized_ends{$rdmID},$anch_len,$anch_dist,$three_end,$five_start) if (exists $randomized_ends{$rdmID});
 		if ($ifnextrand eq "yes") {
 			$failed_anchor_ref->{$r}++;
 			next RDMPOSI;
 		}
 		# - second, check regions previously stored
-		($ifnextrand) = Deletions::check_overlap_reg($alreadyrand_full_ref->{$rdmID},$anch_len,$anch_dist,$three_end,$five_start) if (exists $alreadyrand_full_ref->{$rdmID});
+		($ifnextrand) = DelGet::check_overlap_reg($alreadyrand_full_ref->{$rdmID},$anch_len,$anch_dist,$three_end,$five_start) if (exists $alreadyrand_full_ref->{$rdmID});
 		if ($ifnextrand eq "yes") {
 			$failed_anchor_ref->{$r}++;
 			next RDMPOSI;
@@ -274,7 +274,7 @@ until ($ok == $randnb) { #big loop
 		# => not overlapping with previous stuff => OK to continue 
 
 		#4) Checking assembly gaps; start and end storred this time b/c size of gaps may change
-		($ifnextrand) = Deletions::check_overlap_gap($gapgen_ref->{0}->{$rdmID},$three_end,$five_start) if (exists $gapgen_ref->{0}->{$rdmID});
+		($ifnextrand) = DelGet::check_overlap_gap($gapgen_ref->{0}->{$rdmID},$three_end,$five_start) if (exists $gapgen_ref->{0}->{$rdmID});
 		if ($ifnextrand eq "yes") {
 			$failed_anchor_ref->{$r}++;
 			next RDMPOSI;
@@ -296,7 +296,7 @@ until ($ok == $randnb) { #big loop
 	print LOG "\n\t---EXTRACT SEQUENCES----------------------------------\n";
 	my $anchors = "$pathtemp/data_anchors-posi-fa-blatout/$r.anchors.gen1.fa";
 	close LOG;
-	my $gen1Infos_ref = Deletions::extract_sequences($tempposi,$anchors,$log,$genone);;
+	my $gen1Infos_ref = DelGet::extract_sequences($tempposi,$anchors,$log,$genone);;
 	open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
 	print LOG "\t--- done\n";
 	
@@ -325,7 +325,7 @@ until ($ok == $randnb) { #big loop
 	tie @HSfiles, 'Array::Unique';
 	print LOG "\t--- getting highest scores from blat outputs...\n";
 	for (my $i = 0; $i<=$#blatfiles; $i ++) {
-		my @HSfiles_temp = Deletions::parse_blat($log,$blatfiles[$i],$genIDs[$i],$pathtemp);
+		my @HSfiles_temp = DelGet::parse_blat($log,$blatfiles[$i],$genIDs[$i],$pathtemp);
 		push (@HSfiles,@HSfiles_temp);
 	}
 	open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
@@ -401,25 +401,25 @@ until ($ok == $randnb) { #big loop
 		
 		# check that distance between anchors is not <0
 		my $strand_gen2 = $gentwo{5}->[0];
-		my ($undef2,$start_gen2,$end_gen2,$dist_gen2) = Deletions::check_anchor_dist($strand_gen2,%gentwo);
+		my ($undef2,$start_gen2,$end_gen2,$dist_gen2) = DelGet::check_anchor_dist($strand_gen2,%gentwo);
 		print LOG "\t\tERROR: strand_gen2 undefined? (= $strand_gen2)\n" if ($undef2 == 1);
 		next REGIONS if ($dist_gen2 < 0);
 		
 		my $strand_gen3 = $genthree{5}->[0];
-		my ($undef3,$start_gen3,$end_gen3,$dist_gen3) = Deletions::check_anchor_dist($strand_gen3,%genthree);
+		my ($undef3,$start_gen3,$end_gen3,$dist_gen3) = DelGet::check_anchor_dist($strand_gen3,%genthree);
 		print LOG "\t\tERROR: strand_gen3 undefined? (= $strand_gen3)\n" if ($undef3 == 1);
 		next REGIONS if ($dist_gen3 < 0);
 		
 		#check assembly gaps
 		if ($gapgen_ref->{1}->{$t_name_gen2}) {
-			my ($ifnext2) = Deletions::check_overlap_gap($gapgen_ref->{1}->{$t_name_gen2},$end_gen2,$start_gen2);
+			my ($ifnext2) = DelGet::check_overlap_gap($gapgen_ref->{1}->{$t_name_gen2},$end_gen2,$start_gen2);
 			if ($ifnext2 eq "yes") {
 				$failed_checks_ref->{$r}++;
 				next REGIONS;
 			}
 		}
 		if ($gapgen_ref->{2}->{$t_name_gen3}) {
-			my ($ifnext3) = Deletions::check_overlap_gap($gapgen_ref->{2}->{$t_name_gen3},$end_gen3,$start_gen3);
+			my ($ifnext3) = DelGet::check_overlap_gap($gapgen_ref->{2}->{$t_name_gen3},$end_gen3,$start_gen3);
 			if ($ifnext3 eq "yes") {
 				$failed_checks_ref->{$r}++;
 				next REGIONS;

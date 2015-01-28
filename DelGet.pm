@@ -3,16 +3,16 @@
 #######################################################
 # SUBROUTINES
 # FOR SUBSET OF SCRIPTS = DelGet.pl
-# => defined as Deletions package
+# => defined as DelGet package
 ######################################################
-package Deletions;
+package DelGet;
 
 ######################################################
 # QUITE GENERAL FILE ARCHITECTURE STUFF
 ######################################################
 #----------------------------------------------------------------------------
 # get a filename from a full path
-# my $genone_name = Deletions::filename($genone);
+# my $genone_name = DelGet::filename($genone);
 #----------------------------------------------------------------------------
 sub filename {
 	my($name) = shift;
@@ -43,7 +43,7 @@ sub make_out_dir {
 ######################################################
 #----------------------------------------------------------------------------
 # calculate length of the genome, for sequences > $minlen - includes check steps to avoid repeating this if length already calculated
-# => my ($totlength) = Deletions::get_tot_len_filtered($genome,$log,$minlen);
+# => my ($totlength) = DelGet::get_tot_len_filtered($genome,$log,$minlen);
 # 	 note that log file need to be closed in the main before calling the subroutine, and reopened after
 #----------------------------------------------------------------------------
 sub get_tot_len_filtered {
@@ -96,7 +96,7 @@ sub get_tot_len_filtered {
 
 #----------------------------------------------------------------------------
 # Get all lengths of the genome - includes check steps to avoid repeating this if length already calculated
-# => my ($geninfos) = Deletions::get_all_len_filtered($genome,$log,$minlen,$GenLen);
+# => my ($geninfos) = DelGet::get_all_len_filtered($genome,$log,$minlen,$GenLen);
 # 	 note that log file need to be closed in the main before calling the subroutine, and reopened after
 #----------------------------------------------------------------------------
 sub get_all_len_filtered {
@@ -162,7 +162,7 @@ sub get_all_len_filtered {
 ######################################################
 #----------------------------------------------------------------------------
 # get assembly gaps coordinates, from standard UCSC format, see below
-# $gapgen_ref = Deletions::get_gaps($file,$gapfiles[$f]); #access to gaps of $file = $gapgen_ref->{$file} since it's refs
+# $gapgen_ref = DelGet::get_gaps($file,$gapfiles[$f]); #access to gaps of $file = $gapgen_ref->{$file} since it's refs
 #----------------------------------------------------------------------------
 #0		1							2			3			4	5	6
 #bin	chrom						chromStart	chromEnd	ix	n	size	type	bridge
@@ -251,7 +251,7 @@ sub get_previous_OKreg {
 
 #----------------------------------------------------------------------------
 # load previous regions
-# => my $alreadyrand_full_ref = Deletions::load_previous_OKreg($prev_reg);
+# => my $alreadyrand_full_ref = DelGet::load_previous_OKreg($prev_reg);
 #----------------------------------------------------------------------------
 sub load_previous_OKreg {
 	my $prev_reg = shift;
@@ -272,7 +272,7 @@ sub load_previous_OKreg {
 
 #----------------------------------------------------------------------------
 # Check for overlap between regions
-# => my ($ifnextrand,$failed_anchor_ref) = Deletions::check_overlap_reg($randomized_ends{$rdmID},$anch_len,$anch_dist,$three_end,$five_start)
+# => my ($ifnextrand,$failed_anchor_ref) = DelGet::check_overlap_reg($randomized_ends{$rdmID},$anch_len,$anch_dist,$three_end,$five_start)
 #----------------------------------------------------------------------------
 sub check_overlap_reg {
 	my ($already,$anch_len,$anch_dist,$three_end,$five_start) = @_;
@@ -291,8 +291,8 @@ sub check_overlap_reg {
 
 #----------------------------------------------------------------------------
 # Check for overlap between randomized region and assembly gap
-# => my ($ifnextrand,$failed_anchor_ref) = Deletions::check_overlap_gap($gapgen_ref->{1}->{$rdmID},$three_end,$five_start) if (exists $gapgen_ref->{1}->{$rdmID});
-# => my ($ifnext2,$failed2) = Deletions::check_overlap_gap($gapgen_ref->{2}->{$t_name_gen2},$end_gen2,$start_gen2) if ($gapgen_ref->{2}->{$t_name_gen2});
+# => my ($ifnextrand,$failed_anchor_ref) = DelGet::check_overlap_gap($gapgen_ref->{1}->{$rdmID},$three_end,$five_start) if (exists $gapgen_ref->{1}->{$rdmID});
+# => my ($ifnext2,$failed2) = DelGet::check_overlap_gap($gapgen_ref->{2}->{$t_name_gen2},$end_gen2,$start_gen2) if ($gapgen_ref->{2}->{$t_name_gen2});
 #----------------------------------------------------------------------------
 sub check_overlap_gap {
 	my ($storedgaps,$three_end,$five_start) = @_;
@@ -313,7 +313,7 @@ sub check_overlap_gap {
 
 #----------------------------------------------------------------------------
 # Extract sequences + get infos of anchor coords for final output
-# => my $gen1Infos_ref = Deletions::extract_sequences($tempposi,$anchors,$log,$genone);
+# => my $gen1Infos_ref = DelGet::extract_sequences($tempposi,$anchors,$log,$genone);
 #----------------------------------------------------------------------------
 sub extract_sequences {
 	my ($tempposi,$anchors,$log,$genome) = @_;
@@ -341,7 +341,7 @@ sub extract_sequences {
 
 #----------------------------------------------------------------------------
 # parse blat outputs
-# => my @HSfiles_temp = Deletions::parse_blat($log,$blatfiles[$i],$genIDs[$i],$pathtemp);
+# => my @HSfiles_temp = DelGet::parse_blat($log,$blatfiles[$i],$genIDs[$i],$pathtemp);
 #----------------------------------------------------------------------------
 sub parse_blat {
 	my ($log,$file,$genID,$pathtemp) = @_;
@@ -394,7 +394,7 @@ sub parse_blat {
 
 #----------------------------------------------------------------------------
 # get distance between the anchors
-# => my ($undef,$dist_gen2) = Deletions::check_anchor_dist($strand_gen2,$gentwo_ref);
+# => my ($undef,$dist_gen2) = DelGet::check_anchor_dist($strand_gen2,$gentwo_ref);
 #----------------------------------------------------------------------------
 sub check_anchor_dist { 
 	($strand,%gen) = @_;

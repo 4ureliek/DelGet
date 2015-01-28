@@ -235,7 +235,7 @@ my $oktot = 0;
 until ($oktot == $randtot) { #ie total nb defined in config file
 	print LOG "$oktot regions are ok\n";
 	#Folder for outputs, for each run; need to be provided to each script
-	my ($pathtemp,$c) = Deletions::make_out_dir($path);
+	my ($pathtemp,$c) = DelGet::make_out_dir($path);
 	print LOG "    Round $c -> folder Deletions.$c\n";
 	print "\n--------------------------------------------------------------------------------------------------------------------\nRound $c -> folder Deletions.$c\n";
 	
