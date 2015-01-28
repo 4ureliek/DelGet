@@ -35,15 +35,17 @@
 #   - v3.2 = 18 Oct 2013
 #		- Kalign used instead of muscle for large sequences [muscle still not working]
 #######################################################
-#only if perl module installed in my home dir (no sudo access):
-# BEGIN { 
-	# unshift(@INC, "/home/akapusta/lib/perl5/site_perl/5.8.8"); 
-# }
 use warnings;
 use Bio::Perl;
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::DB::Fasta;
+use vars qw($BIN);
+use Cwd ();
+BEGIN { 	
+	$BIN = Cwd::cwd();
+	unshift(@INC, "$BIN/Lib");
+}
 use Array::Unique;
 my $version = "3.2";
 

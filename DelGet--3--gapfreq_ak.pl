@@ -27,6 +27,12 @@ use warnings;
 use Bio::Seq;
 use Bio::SeqIO;
 use Bio::AlignIO;
+use vars qw($BIN);
+use Cwd ();
+BEGIN { 	
+	$BIN = Cwd::cwd();
+	unshift(@INC, "$BIN/Lib");
+}
 use Array::Transpose::Ragged qw/transpose_ragged/;
 my $version = "v1.4";
 

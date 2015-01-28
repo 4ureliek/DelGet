@@ -21,14 +21,14 @@
 # FOR SCRIPT --1--
 # NUMBER OF TOTAL REGIONS = to stop the loop
 # 1) number of random positions that will be treated per round (sequence extracted, blat against gen2 and gen3, checking steps etc).
-  $a_per_round = 500; #[blat step is a limitation in the script and requires to put genome in memory every time - don't put that number too low or too high]
+  $a_per_round = 50; #[blat step is a limitation in the script and requires to put genome in memory every time - don't put that number too low or too high]
 # 2) TOTAL number_of_randomization 
-  $randtot = 100000; #Loop inside the pipeline; rounds will be done $randnb by $randnb anyway
+  $randtot = 100; #Loop inside the pipeline; rounds will be done $randnb by $randnb anyway
 # 3) Number per run that need to be successful
-  $randnb = 100; #[this is arbitrarily chosen based on when script was stopping to write outputs for some groups of species]
+  $randnb = 10; #[this is arbitrarily chosen based on when script was stopping to write outputs for some groups of species]
   
 # length beetween anchors  
-  $anch_dist = 25000; #=distance in genome1 between the 2 anchors [anchor1]<----XXnt---->[anchor2]
+  $anch_dist = 5000; #=distance in genome1 between the 2 anchors [anchor1]<----XXnt---->[anchor2]
 
 # length of anchors.
   $anch_len = 100; #100 is a good number.
@@ -70,7 +70,7 @@
 # FOR SCRIPT --1--
 ##########################################################
 # blat software
-  $BLATSOFT = "/home/software/ucsc/blat/blat"; #erv
+  $BLATSOFT = "~/app/ucsc/blat/blat";
 
 # path to a file with OK regions ("_OKregions.tab", output of a previous run), to be loaded and avoid overlap 
 # Define path of previous output (next outputs will be automatically concatenated to this one), needed only if not in Deletions.X folder.
@@ -85,33 +85,33 @@
 
 # genomes files
 # note that you need writing access over there, to create index files
-  $genone   =  "/data/genomes/Rhesus/rheMac3.fa";
-  $gentwo   =  "/data/genomes/human/hg19/chr/hg19.chr.fa";
-  $genthree =  "/data/genomes/Chimpanzee/panTro4/panTro4.fa";
+  $genone   =  "/archive03/akapusta/GenomeSize/GetDel/TestData/data/rheMac3.fa";
+  $gentwo   =  "/archive03/akapusta/GenomeSize/GetDel/TestData/data/hg38.chr.fa";
+  $genthree =  "/archive03/akapusta/GenomeSize/GetDel/TestData/data/panTro4.fa";
 
 
 # gap coordinates files
 # These gap files list assembly gaps coordinates. Files need to be as UCSC format, and obvisouly name of sequences need to match names of sequences in your genome file. 
 # If no gap file available on UCSC for your assembly, use the provided script fasta_get_gaps.pl 
-  $gapone   =  "/data/Deletions/Primates/PrimatesGaps/rheMac3.gaps.tab";
-  $gaptwo   =  "/data/Deletions/Primates/PrimatesGaps/hg19.gaps.tab";
-  $gapthree =  "/data/Deletions/Primates/PrimatesGaps/panTro4.gaps.tab";
+  $gapone   =  "/archive03/akapusta/GenomeSize/GetDel/TestData/data/rheMac3.gaps.tab";
+  $gaptwo   =  "/archive03/akapusta/GenomeSize/GetDel/TestData/data/hg38.gaps.tab";
+  $gapthree =  "/archive03/akapusta/GenomeSize/GetDel/TestData/data/panTro4.gaps.tab";
 
   
 ##########################################################
 # FOR SCRIPT --2--get-sev-seq_align
 ##########################################################
 # Kalign software [needed only for large alignments], see http://www.biomedcentral.com/1471-2105/6/298/
-  $KALIGNSOFT = "/home/software/Kalign2/kalign"; #erv
+  $KALIGNSOFT = "~/app/Kalign2/kalign";
   
 # muscle software  
-  $MUSCLESOFT = "/home/software/muscle3.8.31/muscle3.8.31"; #erv
+  $MUSCLESOFT = "~/app/muscle3.8.31/muscle3.8.31";
 
 # genome files TO EXTRACT SEQUENCES = needed to write in posifile
-  #Note that you can simply create symbolic links of the genome files, with ln -s /data/genomes/Rhesus/rheMac3.fa /data/Deletions/genomes_toalign/rheMac3.fa
-  $genone_a   =  "/data/Deletions/genomes_toalign/rheMac3.fa";
-  $gentwo_a   =  "/data/Deletions/genomes_toalign/hg19.chr.fa";
-  $genthree_a =  "/data/Deletions/genomes_toalign/panTro4.fa";
+  #erv
+  $genone_a   =  "/archive03/akapusta/GenomeSize/GetDel/TestData/genomes_toalign/rheMac3.fa";
+  $gentwo_a   =  "/archive03/akapusta/GenomeSize/GetDel/TestData/genomes_toalign/hg38.chr.fa";
+  $genthree_a =  "/archive03/akapusta/GenomeSize/GetDel/TestData/genomes_toalign/panTro4.fa";
   
 # [DO NOT CHANGE]: decide aln software
   ($anch_dist >= 40000)?($ALNSOFT = $KALIGNSOFT):($ALNSOFT = $MUSCLESOFT);
@@ -120,15 +120,15 @@
 # FOR MASKING
 ##########################################################
 # repeat masker software
-  $RMSOFT = "/home/software/RepeatMasker/RepeatMasker";
+  $RMSOFT = "";
 
 # masking librarie(s)
 # If blank, no masking will be done. 
 # Several libraries can be defined, just separate by a , in the @mask and the @masking_folders list
 # As many masking_folders elements as mask files are required
 # -lib is needed in running repeat masker => use Repeat Masker script in their utilities to convert their embl to fasta if you would like to mask with the whole library
-  @mask = ("/data/Deletions/Primates/TEdb_to_mask/RepeatMaskerLib.20140131.fa","/data/Deletions/Primates/TEdb_to_mask/TE.subset.fa");
-  @masking_folders = ("masked.RM20130422","masked.subset");
+  @mask = ();
+  @masking_folders = ();
 #
 
 #ensure last returned value is true (to load as require in scripts) => DO NOT REMOVE

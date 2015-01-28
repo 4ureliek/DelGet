@@ -43,16 +43,19 @@
 #	- v3.1 = 04 Mar 2014
 #		Bug corrected for when Deletions.2 => was trying to open Deletions.0/_OKregions.all.tab instead of in Deletions.1
 ##########################################################
-#only if perl modules installed in my home dir (no sudo access):
-# BEGIN { 
-	# unshift(@INC, "/home/akapusta/lib/perl5/site_perl/5.8.8"); #hematite server, yandell lab
-# }
 use strict;
 use warnings;
 use Bio::DB::Fasta;
 use Bio::Seq;
 use Bio::SeqIO;
+use vars qw($BIN);
+use Cwd ();
+BEGIN { 	
+	$BIN = Cwd::cwd();
+	unshift(@INC, "$BIN/Lib");
+}
 use Array::Unique;
+use DelGet;
 my $version = "v3.1";
 
 ####################################################################################################################
@@ -102,9 +105,6 @@ our $if_OKregions;
 
 # Load Configuration file
 require "$config_file";
-
-# Load subroutines
-require "$script_path/DelGet.pm" or die "\t    ERROR - can't open $script_path/DelGet.pm $!\n";
 
 # Get lists of files
 my @genfiles = ($gentwo,$genthree);
