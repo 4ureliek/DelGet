@@ -52,6 +52,7 @@ use vars qw($BIN);
 use Cwd 'abs_path';
 BEGIN { 	
 	$BIN = abs_path($0);
+	$BIN =~ s/(.*)\/.*$/$1/;
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Unique;
