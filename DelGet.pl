@@ -1,8 +1,8 @@
 #!/usr/bin/perl -w
 
 ##########################################################
-# Author  :  Aurelie K
-# version :  4.0 (see updates)
+# Author  :  Aurelie Kapusta
+# version :  4.2 (see updates)
 # email   :  4urelie.k@gmail.com
 # PURPOSE :  General question at the base of writing this pipeline = assess medium size deletions between species.
 #			 See lower ($usage and $help) for details.
@@ -51,6 +51,8 @@
 #			Deletions_pipeline--1--get_regions_ak.pl (getting previous regions)
 #			Deletions_pipeline--3--gapfreq_cat-outputs_ak.pl (errors in concat, see script)
 #			fasta-aln_RW-output-with-lowcases_from-RMout_ak.pl (files named align and not muscle now)
+#   - v4.2 = 27 Jan 2015
+#       Changes for Github first upload (@INC stuff) + added some die checks
 ##########################################################
 use strict;
 use warnings;
@@ -67,12 +69,12 @@ BEGIN {
 }
 use Array::Unique;
 use DelGet;
-my $version = "4.1";
+my $version = "4.2";
 
 #################################################################
 # Usage and help
 #################################################################
-my $usage = "\nUSAGE:
+my $usage = "\nUSAGE [v$version]:
 	perl script.pl <config_file>
 
 	Typically:
@@ -185,6 +187,25 @@ our @masking_folders;
 
 #now load config file where these variables are set
 require "$config_file" or die "\t    ERROR - can't open $config_file $!\n";
+
+#Checkexistence of files
+die "\t    ERROR - $genone does not exist?\n" if (! -e $genone);
+die "\t    ERROR - $gentwo does not exist?\n" if (! -e $gentwo);
+die "\t    ERROR - $genthree does not exist?\n" if (! -e $genthree);
+die "\t    ERROR - $genone_a does not exist?\n" if (! -e $genone_a);
+die "\t    ERROR - $gentwo_a does not exist?\n" if (! -e $gentwo_a);
+die "\t    ERROR - $genthree_a does not exist?\n" if (! -e $genthree_a);
+die "\t    ERROR - $gapone does not exist?\n" if (! -e $gapone);
+die "\t    ERROR - $gaptwo does not exist?\n" if (! -e $gaptwo);
+die "\t    ERROR - $gapthree does not exist?\n" if (! -e $gapthree);
+foreach my $mask (@mask) { die "\t    ERROR - $mask does not exist?\n" if (! -e $mask); }
+die "\t    ERROR - please check value of numeric variables in configuration file\n" if (($a_max_len !~ /[0-9]+/) || ($randtot  !~ /[0-9]+/) || ($randnb  !~ /[0-9]+/) || ($anch_dist !~ /[0-9]+/) || ($anch_len !~ /[0-9]+/) || ($mingaplen !~ /[0-9]+/));
+
+#Check existence of tools
+die "\t    ERROR: $BLATSOFT does not exist?\n" if (! -e $BLATSOFT);
+die "\t    ERROR: $MUSCLESOFT does not exist?\n" if (! -e $MUSCLESOFT);
+die "\t    ERROR: $RMSOFT does not exist?\n" if (($RMSOFT ne "") && (! -e $RMSOFT));
+
 
 my $log = "$path/_DelGet.log";
 open(LOG, ">$log") or die "\t    ERROR - can not create log file $log $!\n";

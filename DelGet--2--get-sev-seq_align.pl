@@ -34,6 +34,8 @@
 #		- muscle parameter change for very long sequences, to avoid error *** ERROR ***  MSA::GetLetter
 #   - v3.2 = 18 Oct 2013
 #		- Kalign used instead of muscle for large sequences [muscle still not working]
+#   - v3.3 = 27 Jan 2015
+#       Changes for Github first upload (@INC stuff)
 #######################################################
 use warnings;
 use Bio::Perl;
@@ -48,7 +50,7 @@ BEGIN {
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Unique;
-my $version = "3.2";
+my $version = "3.3";
 
 my $usage = "\nUSAGE:
 	perl <scriptname.pl> <config_file> <path> <inputfile>

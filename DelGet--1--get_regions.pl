@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 ##########################################################
-# Author  :  Aurelie K
+# Author  :  Aurelie Kapusta
 # version :  3.0 (see below)
 # email   :  4urelie.k@gmail.com
 # PURPOSE :  General question at the base of writing this script = assess medium size deletions between species.
@@ -42,6 +42,8 @@
 #		Changes to use subroutines => lots of changes in the code
 #	- v3.1 = 04 Mar 2014
 #		Bug corrected for when Deletions.2 => was trying to open Deletions.0/_OKregions.all.tab instead of in Deletions.1
+#   - v3.2 = 27 Jan 2015
+#       Changes for Github first upload (@INC stuff)
 ##########################################################
 use strict;
 use warnings;
@@ -57,7 +59,7 @@ BEGIN {
 }
 use Array::Unique;
 use DelGet;
-my $version = "v3.1";
+my $version = "v3.2";
 
 ####################################################################################################################
 # Usage and load config file

@@ -24,11 +24,9 @@
 #		Do not consider that the A at : TGC------A------TGC is a gap ending, but go to next. 
 #		Coordinates of start and end not changed, but length of the gap is corrected
 #		Changed % of gap that need to be lc (masked) in other species (at least one) to be called in "in-masked". It was 85%, I lowered to 75%
+#   - v1.5 = 27 Jan 2015
+#       Changes for Github first upload (@INC stuff)
 ##########################################################
-#only if perl module installed in my home dir (no sudo access):
-# BEGIN { 
-	# unshift(@INC, "/home/akapusta/lib/perl5/site_perl/5.8.8"); 
-# }
 use strict;
 use warnings;
 use Bio::Seq;
@@ -42,7 +40,7 @@ BEGIN {
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Transpose::Ragged qw/transpose_ragged/;
-my $version = "v1.4";
+my $version = "v1.5";
 
 my $usage = "Usage:
 	perl <scriptname.pl> <path_to_all> <spID1,speID2,spID3>

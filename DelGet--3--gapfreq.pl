@@ -21,6 +21,8 @@
 #	- v1.4 = 07 Nov 2013
 #		Do not consider that the A at : TGC------A------TGC is a gap ending, but go to next. 
 #		Coordinates of start and end not changed, but length of the gap is corrected
+#   - v1.5 = 27 Jan 2015
+#       Changes for Github first upload (@INC stuff)
 ##########################################################
 use strict;
 use warnings;
@@ -35,7 +37,7 @@ BEGIN {
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Transpose::Ragged qw/transpose_ragged/;
-my $version = "v1.4";
+my $version = "v1.5";
 
 my $usage = "Usage:
 	perl <scriptname.pl> <path_to_all> <spID1,speID2,spID3>
