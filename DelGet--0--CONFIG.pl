@@ -20,12 +20,22 @@
 ####################################################################################################################
 # FOR SCRIPT --1--
 # NUMBER OF TOTAL REGIONS = to stop the loop
-# 1) number of random positions that will be treated per round (sequence extracted, blat against gen2 and gen3, checking steps etc).
-  $a_per_round = 500; #[blat step is a limitation in the script and requires to put genome in memory every time - don't put that number too low or too high]
-# 2) TOTAL number_of_randomization 
-  $randtot = 100000; #Loop inside the pipeline; rounds will be done $randnb by $randnb anyway
-# 3) Number per run that need to be successful
-  $randnb = 100; #[this is arbitrarily chosen based on when script was stopping to write outputs for some groups of species]
+# 1) TOTAL number of randomization 
+  $randtot = 10000; 
+     # This number will be reached using a loop inside the pipeline, running all scripts
+     # Rounds will be done $randnb by $randnb.
+# 2) Number per run that need to be successful before going to extracting and aligning sequences
+  $randnb = 100;
+      # After a while, it is possible that very little or no anchors manage to get through the filters
+      # Running in loop allows to still get outputs and results, even if script has to be killed for that reason or any other
+      # Use the script in utilities to cat the outputs
+# 3) number of random positions that will be treated per round (anchor sequences extracted from outgroup, blat against gen2 and gen3, checking steps etc).
+  $a_per_round = 500; 
+     # This step is repeated inside script --1-- until $randnb is reached. 
+     # Blat step is a limitation in the script and requires to put genome in memory every time;
+     # therefore, if species are closely related or if assembly is good, you can lower this number, 
+     # but given the usual success rate even in primates, at least $randnb x2 is advised.
+     # Do x5 if less good assembly or more distant species, or if they have a lot of recent TEs for example.
   
 # length beetween anchors  
   $anch_dist = 25000; #=distance in genome1 between the 2 anchors [anchor1]<----XXnt---->[anchor2]
@@ -37,10 +47,10 @@
   $maxratio = 0.9; #let's say we need highest score / second score < 0.9 (ie second score is max 90% of highest)
   
 # Minimum length of a N strech for it to be considered as an assembly gap
-  $mingaplen = 50; #[typically assembly gaps are 100nt]
+  $mingaplen = 50; # typically assembly gaps are 100nt 
 
 # total length of regions (+2nt) [ADAPT ONLY IF WEIRD ANCHOR HITS]
-  $a_max_len = $anch_len + 50*($anch_len)/100; #[this is to avoid huge span of the hit of anchors in other genome]
+  $a_max_len = $anch_len + 50*($anch_len)/100; # This is to avoid huge span of the hit of anchors in other genome
   
 # [DO NOT CHANGE] total length of regions (+2nt)
   $minlen = $anch_dist + 2*$anch_len;
@@ -58,7 +68,7 @@
 # FOR PIPELINE / SEVERAL SCRIPTS
 ##########################################################
 # path of the folder that will contain all outputfiles. "." means where pipeline is started [a folder will be created]
-  $path = ".";
+  $path = "./Del";
   
 # genome IDs
 # these IDs will be used to name the files and added in extracted sequences names. Don't chose something too long. 4 letters of species IDs are the best.
@@ -70,7 +80,7 @@
 # FOR SCRIPT --1--
 ##########################################################
 # blat software
-  $BLATSOFT = "/home/software/ucsc/blat/blat"; #erv
+  $BLATSOFT = "/home/software/ucsc/blat/blat";
 
 # path to a file with OK regions ("_OKregions.tab", output of a previous run), to be loaded and avoid overlap 
 # Define path of previous output (next outputs will be automatically concatenated to this one), needed only if not in Deletions.X folder.
@@ -86,7 +96,7 @@
 # genomes files
 # note that you need writing access over there, to create index files
   $genone   =  "/data/genomes/Rhesus/rheMac3.fa";
-  $gentwo   =  "/data/genomes/human/hg19/chr/hg19.chr.fa";
+  $gentwo   =  "/data/genomes/human/hg19/chr/hg19.fa";
   $genthree =  "/data/genomes/Chimpanzee/panTro4/panTro4.fa";
 
 
@@ -102,19 +112,19 @@
 # FOR SCRIPT --2--get-sev-seq_align
 ##########################################################
 # Kalign software [needed only for large alignments], see http://www.biomedcentral.com/1471-2105/6/298/
-  $KALIGNSOFT = "/home/software/Kalign2/kalign"; #erv
+  $kalign = "/home/software/Kalign2/kalign"; #erv
   
 # muscle software  
-  $MUSCLESOFT = "/home/software/muscle3.8.31/muscle3.8.31"; #erv
+  $muscle = "/home/software/muscle3.8.31/muscle3.8.31"; #erv
 
 # genome files TO EXTRACT SEQUENCES = needed to write in posifile
   #Note that you can simply create symbolic links of the genome files, with ln -s /data/genomes/Rhesus/rheMac3.fa /data/Deletions/genomes_toalign/rheMac3.fa
   $genone_a   =  "/data/Deletions/genomes_toalign/rheMac3.fa";
-  $gentwo_a   =  "/data/Deletions/genomes_toalign/hg19.chr.fa";
+  $gentwo_a   =  "/data/Deletions/genomes_toalign/hg19.fa";
   $genthree_a =  "/data/Deletions/genomes_toalign/panTro4.fa";
   
 # [DO NOT CHANGE]: decide aln software
-  ($anch_dist >= 40000)?($ALNSOFT = $KALIGNSOFT):($ALNSOFT = $MUSCLESOFT);
+  ($anch_dist >= 40000)?($ALNSOFT = $kalign):($ALNSOFT = $muscle);
   
 ##########################################################
 # FOR MASKING

@@ -12,6 +12,8 @@
 #		Error in getting file name for lcuc parsing concatenation => was keeping only last folder
 #	- v1.2 = 03 Mar 2014
 #		problem when no gaps in some categories when concat.
+#  - v1.3 = 29 Jan 2015
+#       avoid useless errors when no masked stuff in the first place
 ##########################################################
 use strict;
 use warnings;
@@ -32,9 +34,9 @@ my $usage = "\nUSAGE:
 		perl DelGet.pl .\n\n";
 	
 
-my $path = shift @ARGV or die "$usage $!\n" ;
+my $path = shift or die "$usage $!\n" ;
 
-print "\n --- script started\n";
+print "\n --- script started";
 #################################################################
 # Get folders where to look for
 #################################################################
@@ -56,6 +58,7 @@ my %coords = (
 my %gapfreq = ();
 my %lcuc = ();
 my @RMout = ();
+my $maskednb = 0;
 my $i = 0;
 print "\n --- Processing gapfreq results...\n";
 foreach my $EAdir (@EAdir) {
@@ -73,12 +76,16 @@ foreach my $EAdir (@EAdir) {
 		}
 		$i=1;
 	}
-	#get masked folders if they exist
-	my @RMout_temp = `ls -d $EAdir/*/` or die print " ERROR - can't list files in $EAdir $!\n"; #get folders with masked stuff
-	foreach my $masked (@RMout_temp) {
-		$masked =~ s/\/$//;
-		push(@RMout,$masked) if ("$masked/gapfreq.lcuc.log"); #push only if masked files there that were analyzed
+	# use that to get masked folders if they exist
+	my @RMout_temp = ();
+	if (-e "$EAdir/*/") {
+		@RMout_temp = `ls -d $EAdir/*/`; #get folders with masked stuff
+		foreach my $masked (@RMout_temp) {
+			$masked =~ s/\/$//;
+			push(@RMout,$masked) if ("$masked/gapfreq.lcuc.log"); #push only if masked files there that were analyzed
+		}
 	}
+	$maskednb = @RMout;
 	
 	#there should be a gapfreq.log in this folder
 	open(GAPFREQ,"<$EAdir/gapfreq.log") or die print " !! ERROR: could not open file $EAdir/gapfreq.log $!\n";
@@ -109,39 +116,40 @@ foreach my $EAdir (@EAdir) {
 
 
 #now if relevant also get the lcuc
-print "\n --- Processing gapfreq.lcuc results if any...\n";
-foreach my $masked (@RMout) {
-	chomp $masked;
-	my $file_lcuc;
-	my $parse_lcuc = 0;
-	print "     -> $masked\n";
-	open(GAPFREQ_LCUC,"<$masked/gapfreq.lcuc.log") or die print " !! ERROR: could not open file $masked/gapfreq.lcuc.log $!\n";
-	GF_LCUC: while (<GAPFREQ_LCUC>) {
-		#skip anything that's not results
-		chomp (my $temp_lcuc = $_);
-		$parse_lcuc = 1 if $temp_lcuc =~ /--- parsing gaps/;
-		next GF_LCUC unless ($parse_lcuc == 1);
+unless ($maskednb == 0) {
+	print " --- Processing gapfreq.lcuc results...\n";
+	foreach my $masked (@RMout) {
+		chomp $masked;
+		my $file_lcuc;
+		my $parse_lcuc = 0;
+		print "     -> $masked\n";
+		open(GAPFREQ_LCUC,"<$masked/gapfreq.lcuc.log") or die print " !! ERROR: could not open file $masked/gapfreq.lcuc.log $!\n";
+		GF_LCUC: while (<GAPFREQ_LCUC>) {
+			#skip anything that's not results
+			chomp (my $temp_lcuc = $_);
+			$parse_lcuc = 1 if $temp_lcuc =~ /--- parsing gaps/;
+			next GF_LCUC unless ($parse_lcuc == 1);
 		
-		#get file if relevant
-		if ($temp_lcuc =~ /_[A-Za-z]+\.gaps.*\masked.*bed/) {
-			$file_lcuc = $temp_lcuc;
-			$file_lcuc =~ s/.*\/_ExtractAlign\/.*masked.*\/(_[A-Za-z]+\.gaps\.in.*masked.*bed)/$1/;
-			$file_lcuc =~ s/masked\.bed/masked\.specific\.bed/ unless $file_lcuc =~ /specific/;
+			#get file if relevant
+			if ($temp_lcuc =~ /_[A-Za-z]+\.gaps.*\.masked.*bed/) {
+				$file_lcuc = $temp_lcuc;
+				$file_lcuc =~ s/.*\/_ExtractAlign\/.*masked.*\/(_[A-Za-z]+\.gaps\.in.*masked.*bed)/$1/;
+				$file_lcuc =~ s/masked\.bed/masked\.specific\.bed/ unless $file_lcuc =~ /specific/;
+			}
+			#next should be values, split on tab
+			if (($temp_lcuc =~ /Total.*of\sspe\sgaps/) || ($temp_lcuc =~ /Total\slength\sof\salignements/)){
+				my ($type,$value) = split(/\t/,$temp_lcuc);
+				$type =~ s/^\s+//;
+				$type = $coords{$type}." ".$type;
+				my $masked_dirname = $1 if ($masked =~ m/.*Deletions\..*\/_ExtractAlign\/(.*masked.*)/);
+				(defined $lcuc{$masked_dirname}{$file_lcuc}{$type})?($lcuc{$masked_dirname}{$file_lcuc}{$type}+=$value):($lcuc{$masked_dirname}{$file_lcuc}{$type}=$value);
+			}
 		}
-		#next should be values, split on tab
-		if (($temp_lcuc =~ /Total.*of\sspe\sgaps/) || ($temp_lcuc =~ /Total\slength\sof\salignements/)){
-			my ($type,$value) = split(/\t/,$temp_lcuc);
-			$type =~ s/^\s+//;
-			$type = $coords{$type}." ".$type;
-			my $masked_dirname = $1 if ($masked =~ m/.*Deletions\..*\/_ExtractAlign\/(.*masked.*)/);
-			(defined $lcuc{$masked_dirname}{$file_lcuc}{$type})?($lcuc{$masked_dirname}{$file_lcuc}{$type}+=$value):($lcuc{$masked_dirname}{$file_lcuc}{$type}=$value);
-		}
-	}
-	close GAPFREQ_LCUC;
-}#end loop foreach RMout (masked folders -> lcuc gaps)
+		close GAPFREQ_LCUC;
+	}#end loop foreach RMout (masked folders -> lcuc gaps)
+}
 
-
-print "\n --- done getting values\n\n";
+print " --- done getting values\n";
 
 #################################################################
 # Now read hashes and print cat results
@@ -173,7 +181,7 @@ foreach my $masked (@RMout) {
 	}
 	close OUT_LCUC;
 }
-print " --- done [script done]\n\n\n";
+print " --- done\n\n\n";
 exit;
 
 

@@ -88,11 +88,11 @@ my $log = "$pathtemp/_DelGet--2--get-sev-seq_align.log";
 open(LOG, ">$log") or die "\t    ERROR - can not create log file $log $!\n";
 
 # check for variables, kill this script and pipeline if some are missing
-die print LOG "\t!! Some variables are not defined in config file\n" if ((! $MUSCLESOFT) || (! $anch_dist) || (! $multip));
+die print LOG "\t!! Some variables are not defined in config file\n" if ((! $ALNSOFT) || (! $anch_dist) || (! $multip));
 
 # if OK, then carry on
 print LOG "\n--- Script (v$version) started with following muscle location (can be changed inside Config file):
-    Muscle software = $MUSCLESOFT
+    Alignment software = $ALNSOFT
     Max sequence length = $anch_dist x $multip = $max nt\n\n";
 
 ############################################################
