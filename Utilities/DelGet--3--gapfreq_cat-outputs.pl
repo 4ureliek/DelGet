@@ -14,6 +14,8 @@
 #		problem when no gaps in some categories when concat.
 #  - v1.3 = 29 Jan 2015
 #       avoid useless errors when no masked stuff in the first place
+#  - v1.4 = 25 Jun 2015
+#       See bug fix flag; allow numbers in the IDs of the genomes (ex. use of assembly IDs possible...!)
 ##########################################################
 use strict;
 use warnings;
@@ -98,9 +100,9 @@ foreach my $EAdir (@EAdir) {
 		$parse = 1 if ($temp =~ /.*---\sparsing\sgaps.*/);
 		next GF unless ($parse == 1);
 		
-		#get file if relevant
-		$file = $temp if ($temp =~ /_[A-Za-z]+\.gaps\.specific\.bed/);
-		$file =~ s/.*\/_ExtractAlign\/(_[A-Za-z]+\.gaps\.specific\.bed)/$1/ if ($temp =~ /_[A-Za-z]+\.gaps\.specific\.bed/);
+		#get file if relevant #Bug fix v1.4 => addition of 1-9 and a dot in regex
+		$file = $temp if ($temp =~ /_[A-Za-z1-9\.]+\.gaps\.specific\.bed/);
+		$file =~ s/.*\/_ExtractAlign\/(_[A-Za-z1-9\.]+\.gaps\.specific\.bed)/$1/ if ($temp =~ /_[A-Za-z1-9]+\.gaps\.specific\.bed/);
 
 		#next should be values, split on tab
 		if (($temp =~ /.*Total.*of\sspe\sgaps.*/) || ($temp =~ /.*Total\slength\sof\salignements.*/)){

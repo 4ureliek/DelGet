@@ -44,6 +44,11 @@
 #		Bug corrected for when Deletions.2 => was trying to open Deletions.0/_OKregions.all.tab instead of in Deletions.1
 #   - v3.2 = 27 Jan 2015
 #       Changes for Github first upload (@INC stuff)
+#   - v3.3 = 13 May 2015
+#       Few changes of no consequences while debugging
+#       Set counter $failed_anchor_ref->{$r} to 0
+#		in DelGet.pm, sub get_all_len_filtered 
+#          => if ratio = 0, put it at 1 - otherwise it can never go through when many sequences and few are asked
 ##########################################################
 use strict;
 use warnings;
@@ -59,7 +64,7 @@ BEGIN {
 }
 use Array::Unique;
 use DelGet;
-my $version = "v3.2";
+my $version = "v3.3";
 
 ####################################################################################################################
 # Usage and load config file
@@ -118,48 +123,52 @@ my @gapfiles = ($gapone,$gaptwo,$gapthree);
 my $c=$pathtemp;
 $c =~ s/^.*Deletions\.([0-9]+)$/$1/;
 
-#LOG FILE
+#$logone_fh FILE
 my $log = "$pathtemp/_DelGet--1--get_regions.log";
-open(LOG, ">$log") or die "\t    ERROR - can not create log file $log $!\n";
-print LOG "Script DelGet--1--get_regions.pl version $version started:\n\n";
-print LOG "\n---GET REGIONS----------------------------------------------\n    Run number $c\n";
+open(my $logone_fh, ">",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
+print $logone_fh "\nScript DelGet--1--get_regions.pl version $version started:\n";
+print $logone_fh "\n---GET REGIONS----------------------------------------------\n    Run number $c\n";
 
+#keep STDOUT and STDERR from buffering
+select((select(STDERR), $|=1)[0]); #make STDERR buffer flush immediately
+select((select(STDOUT), $|=1)[0]); #make STDOUT buffer flush immediately
 
 ###########################################################
 # DEAL WITH GAP FILES
 ###########################################################
-print LOG "\n---GAP FILES----------------------------------------------\n";
+print $logone_fh "\n---GAP FILES----------------------------------------------\n";
 #0		1							2			3			4	5	6
 #bin	chrom						chromStart	chromEnd	ix	n	size	type	bridge
 #.		gi|432120764|gb|KB097841.1|	268			451			.	.	184		.		.
 
 #store gaps of genome assemblies in hash [references]
 my $gapgen_ref;
-print LOG "\t--- Dealing with...\n";
+print $logone_fh "\t--- Dealing with...\n";
 for (my $f=0;$f<=$#gapfiles;$f++) {
-	print LOG "\t    $gapfiles[$f]...\n";
+	print $logone_fh "\t    $gapfiles[$f]...\n";
 	$gapgen_ref = DelGet::get_gaps($f,$gapfiles[$f]); #access to gaps of a genome = $gapgen_ref->{$f}, with $f=0 for gen1 etc
 }
-print LOG "\t--- done\n";
+print $logone_fh "\t--- done\n";
 
 
 ###########################################################
 # Process genome1 => get names and lengths + nb of random per scaff for genone
 ###########################################################
-print LOG "\n---GET GENOME1 (OUTGROUP) LENGTHS & INFOS----------------------------\n";
+print $logone_fh "\n---GET GENOME1 (OUTGROUP) LENGTHS & INFOS----------------------------\n";
 
 #Extract filename
 my $genone_name = DelGet::filename($genone);
 
-print LOG "\t--- Getting total length of scaffolds to consider + nb of randomizations per scaffold in hash\n";
-close LOG;
+print $logone_fh "\t--- Getting total length of scaffolds to consider + nb of randomizations per scaffold in hash\n";
+close $logone_fh;
 #Get total length 
 my ($totlength) = DelGet::get_tot_len_filtered($genone,$log,$minlen);
 #Getnb of random positions to get per sequence in hash [reference]
 my $infofile = "$path/$genone_name.rlen$anch_dist.alen$anch_len.$randtot"."rand.infos.tab";
-my ($geninfos_ref,@dbIDs) = DelGet::get_all_len_filtered($genone,$log,$minlen,$totlength,$infofile,$randtot);
-open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
-print LOG "\t--- done\n";
+my ($geninfos_ref,$dbIDs_ref) = DelGet::get_all_len_filtered($genone,$log,$minlen,$totlength,$infofile,$randtot);
+
+open($logone_fh, ">>$log") or die "\t    ERROR - can not open to write log file $log $!\n";
+print $logone_fh "\t--- done\n";
 
 
 ######################################################################################################################
@@ -168,48 +177,51 @@ print LOG "\t--- done\n";
 #number of rounds [will be re-initialized to last previous round if there is $OKregions file loaded]
 my $r = 1;
 
-print LOG "\n---STARTING LOOPS-----------------------------------------\n";
+print $logone_fh "\n---STARTING LOOPS-----------------------------------------\n";
 
 ###########################################################
 # DEAL WITH PREVIOUS OUTPUT IF NEEDED
 ###########################################################
 # Put previously randomized regions in a file instead, where new ones will be appended too, to avoid issue of buffering
 my $prev_reg = "$pathtemp/_OKregions.previous-coords.tab";
-close LOG;
+close $logone_fh;
 unless ($if_OKregions eq "no") {
 	$r = DelGet::get_previous_OKreg($path,$r,$OKregions,$log,$c,$prev_reg);
 } else {
-	open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
-	print LOG "\t--- NO previous output file has been defined in CONFIG file\n";
-	close LOG;
-}	
-open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
+	open($logone_fh, ">>",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
+	print $logone_fh "\t--- NO previous output file has been defined in CONFIG file\n";
+	close $logone_fh;
+}
+open($logone_fh,">>",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
 
 
 ###########################################################
 # Prep outputfiles
 ###########################################################
 my $finalout = "$pathtemp/_OKregions.tab";
-open(FINALOUT,">$finalout") or die "\t    ERROR - can not create file $finalout $!";
-print FINALOUT "#REGION\t$genone\t\t\t\t\t\t\t\t\t$gentwo\t\t\t\t\t\t\t\t\t\t\t\t\t\t$genthree\t\t\t\t\t\t\t\t\t\t\t\t\t\n";
-print FINALOUT "#ID\ttype\tGname\tGstart\tGend\ttype\tGname\tGstart\tGend\tDIST\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST\n\n";
+print $logone_fh "\t--- Prep output files in $pathtemp\n";
+close $logone_fh;
+open(my $finalout_fh,">",$finalout) or die "\t    ERROR - can not open to write $finalout $!";
+print $finalout_fh "#REGION\t$genone\t\t\t\t\t\t\t\t\t$gentwo\t\t\t\t\t\t\t\t\t\t\t\t\t\t$genthree\t\t\t\t\t\t\t\t\t\t\t\t\t\n";
+print $finalout_fh "#ID\ttype\tGname\tGstart\tGend\ttype\tGname\tGstart\tGend\tDIST\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST\n\n";
+close $finalout_fh ;
 
 my $gen2out = "$pathtemp/_Gen2.dist.tab";
-open(SIMP2OUT,">$gen2out") or die "\t    ERROR - can not create file $gen2out $!";
 my $gen3out = "$pathtemp/_Gen3.dist.tab";
-open(SIMP3OUT,">$gen3out") or die "\t    ERROR - can not create file $gen3out $!";
+my ($gen2out_fh,$gen3out_fh);
 
 # output:
 #region1     scaffold/chr     start     end     +     Mluc     /mnt/disk3/genomes/Myotis_lucifugus/Myotis_7x.fasta
 my $regions_posi = "$pathtemp/_OKregions.posi.tab";
-open(REGOUT,">$regions_posi") or die "\t    ERROR - can not create file $regions_posi $!";
-print REGOUT "#region_name\tchr\tstart\tend\tstrand\tgenome_ID\tgenome_location\n\n";
+open(my $regions_posi_fh,">",$regions_posi) or die "\t    ERROR - can not open to write $regions_posi $!";
+print $regions_posi_fh "#region_name\tchr\tstart\tend\tstrand\tgenome_ID\tgenome_location\n\n";
+close $regions_posi_fh;
 
 #intermediate files during loop
 my $anchors = "$pathtemp/data_anchors-posi-fa-blatout";
 my $blats = "$pathtemp/data_highest-scores";
-mkdir ($anchors, 0755) or die print LOG "\t    ERROR - Couldn't mkdir $anchors $!";
-mkdir ($blats, 0755) or die print LOG "\t    ERROR - Couldn't mkdir $blats $!";
+mkdir ($anchors, 0755) or die "\t    ERROR - Couldn't mkdir $anchors $!";
+mkdir ($blats, 0755) or die "\t    ERROR - Couldn't mkdir $blats $!";
 
 
 ###########################################################
@@ -225,33 +237,34 @@ my %inversions = ();
 #Now loop
 until ($ok == $randnb) { #big loop
 	#re open where previous positions are and load them => avoid overlaps [hash ref]
-	my $alreadyrand_full_ref = DelGet::load_previous_OKreg($prev_reg);
+	my $alreadyrand_full_ref = DelGet::load_previous_OKreg($prev_reg) unless (! -e $prev_reg);
 	
 	#keep in mind when something was already randomized to avoid overlaps => reinitialize every time there is randomization
 	my %randomized_ends = ();
 	
 	#now carry on
-	print LOG "\n---> round $r\n";
-	print LOG "\t---RANDOMIZATION--------------------------------------\n";
+	open($logone_fh,">>",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
+	print $logone_fh "\n---> round $r\n";
+	print $logone_fh "\t---RANDOMIZATION--------------------------------------\n";
 	my $tempposi = "$pathtemp/data_anchors-posi-fa-blatout/$r.posi.gen1.tab";
-	open(POSI,">$tempposi") or die print LOG "\t    ERROR - can not create file $tempposi $!";
-	print LOG "\t--- getting $a_per_round random positions for this round...\n";
+	my $tempposifh;
+	print $logone_fh "\t--- getting $a_per_round random positions for this round...\n";
 	my $i = 0;
+	$failed_anchor_ref->{$r}=0; #bug fix 2015 05 13
 	RDMPOSI: until ($i == $a_per_round) {
-		#Randomize
-		my $three_end;
-		
+		#Randomize		
 		#(note, @dbIDs here only contains IDs that went through filter - check sub)
+		my @dbIDs = @{$dbIDs_ref};
 		my $rdmIDposi = int(rand($#dbIDs));
 		my $rdmID = $dbIDs[$rdmIDposi];
-		my $ratio = $geninfos_ref->{$rdmID}->[1]; #corresponds to nb of random positions to do here, weighten on length
-		my $size = $geninfos_ref->{$rdmID}->[0] - ($minlen-2); #-2 bc +1 before, and bc minlen will be added to all values
+		my $ratio = $geninfos_ref->{$rdmID}[1]; #corresponds to nb of random positions to do here, weighten on length
+		my $size = $geninfos_ref->{$rdmID}[0] - ($minlen-2); #-2 bc +1 before, and bc minlen will be added to all values	
 		if (($ratio < 1) || ($size < 1)) { #shouldn't happen since now IDs are only the ones of contigs larger than $minlen, but just in case keep this
 			$failed_anchor_ref->{$r}++;
-			#print LOG "ratio_or_size<1=>next\t";
+			#print $logone_fh "ratio_or_size<1=>next\t";
 			next RDMPOSI;
 		}	
-		$three_end = int(rand($size)) + 1 + ($minlen-2); #get in base1
+		my $three_end = int(rand($size)) + 1 + ($minlen-2); #get in base1
 		$geninfos_ref->{$rdmID}->[1]--; #since there was 1 random done here, remove 1
 
 		# get other coordinates and store the end
@@ -259,7 +272,7 @@ until ($ok == $randnb) { #big loop
 		my $five_end = $three_start - $anch_dist + 1; #len in between is really 300nt
 		my $five_start = $five_end - $anch_len + 1; #len of anchor = 100nt
 		($randomized_ends{$rdmID})?($randomized_ends{$rdmID} .= ",$three_end"):($randomized_ends{$rdmID} = $three_end);
-		
+				
 		#3) avoid overlap with any already picked region
 		my $ifnextrand = "no";
 		# - first, do not overlap current randomizations
@@ -267,7 +280,7 @@ until ($ok == $randnb) { #big loop
 		if ($ifnextrand eq "yes") {
 			$failed_anchor_ref->{$r}++;
 			next RDMPOSI;
-		}
+		}				
 		# - second, check regions previously stored
 		($ifnextrand) = DelGet::check_overlap_reg($alreadyrand_full_ref->{$rdmID},$anch_len,$anch_dist,$three_end,$five_start) if (exists $alreadyrand_full_ref->{$rdmID});
 		if ($ifnextrand eq "yes") {
@@ -275,78 +288,79 @@ until ($ok == $randnb) { #big loop
 			next RDMPOSI;
 		}
 		# => not overlapping with previous stuff => OK to continue 
-
+		
 		#4) Checking assembly gaps; start and end storred this time b/c size of gaps may change
 		($ifnextrand) = DelGet::check_overlap_gap($gapgen_ref->{0}->{$rdmID},$three_end,$five_start) if (exists $gapgen_ref->{0}->{$rdmID});
 		if ($ifnextrand eq "yes") {
 			$failed_anchor_ref->{$r}++;
 			next RDMPOSI;
 		}
-		
+				
 		#everything OK => print in posifile 
-		print LOG "\t    => $i regions, OK\n" if ($i == $a_per_round);
-		print POSI "reg".$r."-".$i."#5"."\t$rdmID\t$five_start\t$five_end\n";
-		print POSI "reg".$r."-".$i."#3"."\t$rdmID\t$three_start\t$three_end\n";
+		print $logone_fh "\t    => $i regions, OK\n" if ($i == $a_per_round);
+		open($tempposifh,">>$tempposi") or die "\t    ERROR - can not open to write $tempposi $!";
+		print $tempposifh "reg".$r."-".$i."#5"."\t$rdmID\t$five_start\t$five_end\n";
+		print $tempposifh "reg".$r."-".$i."#3"."\t$rdmID\t$three_start\t$three_end\n";
 		$i++;
+		close $tempposifh;
 	}
-	close POSI;
-	print LOG "\t\tNB, failed randomizations round $r = $failed_anchor_ref->{$r}\n";
-	print LOG "\t--- done\n";
+	print $logone_fh "\t\tNB, failed randomizations round $r = $failed_anchor_ref->{$r}\n";
+	print $logone_fh "\t--- done\n";
 	
 	######################################################################################################################
 	# Extract sequences of randomized anchors
 	######################################################################################################################
-	print LOG "\n\t---EXTRACT SEQUENCES----------------------------------\n";
+	print $logone_fh "\n\t---EXTRACT SEQUENCES----------------------------------\n";
 	my $anchors = "$pathtemp/data_anchors-posi-fa-blatout/$r.anchors.gen1.fa";
-	close LOG;
+	close $logone_fh;
 	my $gen1Infos_ref = DelGet::extract_sequences($tempposi,$anchors,$log,$genone);;
-	open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
-	print LOG "\t--- done\n";
-	
+	open($logone_fh, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
+	print $logone_fh "\t--- done\n";
 	
 
 	######################################################################################################################
 	# BLAT this fasta file against genome2 and genome3
 	######################################################################################################################
-	print LOG "\n\t---BLAT-----------------------------------------------\n";
-	print LOG "\t    blat in progress, against gen2 = $gentwo\n";
+	print $logone_fh "\n\t---BLAT-----------------------------------------------\n";
+	print $logone_fh "\t    blat in progress, against gen2 = $gentwo\n";
 	my $blatout = "$anchors.blat.gen2.out";
 	system "$BLATSOFT -stepSize=5 -repMatch=2253 -minScore=0 -minIdentity=0 $gentwo $anchors $blatout";
-	print LOG "\t    blat in progress, against gen3 = $genthree\n";
+	print $logone_fh "\t    blat in progress, against gen3 = $genthree\n";
 	my $blatout2 = "$anchors.blat.gen3.out";
 	system "$BLATSOFT -stepSize=5 -repMatch=2253 -minScore=0 -minIdentity=0 $genthree $anchors $blatout2";
 	my @blatfiles = ($blatout,$blatout2);
-	print LOG "\t--- done\n";
+	print $logone_fh "\t--- done\n";
 
 	
 	######################################################################################################################
 	# PARSE BLAT OUTPUTS
 	######################################################################################################################
-	print LOG "\n\t---PARSE BLAT-----------------------------------------\n";
+	print $logone_fh "\n\t---PARSE BLAT-----------------------------------------\n";
 	#get highest hit score for each query + keep info of how higher it is (if relevant)
 	my @HSfiles = ();
 	tie @HSfiles, 'Array::Unique';
-	print LOG "\t--- getting highest scores from blat outputs...\n";
+	print $logone_fh "\t--- getting highest scores from blat outputs...\n";
+	close $logone_fh;
 	for (my $i = 0; $i<=$#blatfiles; $i ++) {
 		my @HSfiles_temp = DelGet::parse_blat($log,$blatfiles[$i],$genIDs[$i],$pathtemp);
 		push (@HSfiles,@HSfiles_temp);
 	}
-	open(LOG, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
-	print LOG "\t--- done\n";
-	#print LOG "\t--- files to process = @HSfiles\n";
+	open($logone_fh, ">>$log") or die "\t    ERROR - can not create log file $log $!\n";
+	print $logone_fh "\t--- done\n";
+	#print $logone_fh "\t--- files to process = @HSfiles\n";
 	
 	######################################################################################################################
 	# CHECK OUTPUTS, one per region
 	######################################################################################################################
-	print LOG "\n\t---CHECKING HIGHEST SCORES----------------------------\n";
-	print LOG "\t    [if hit, if same target, if score is high enough, if same strand, if overlap gaps in assembly...]\n";
+	print $logone_fh "\n\t---CHECKING HIGHEST SCORES----------------------------\n";
+	print $logone_fh "\t    [if hit, if same target, if score is high enough, if same strand, if overlap gaps in assembly...]\n";
 	#loop on region
 	REGIONS: for (my $i = 0; $i<=$#HSfiles; $i ++) {
 		my $HSfile = $HSfiles[$i];
 		my %gentwo;
 		my %genthree;
 		my @anchor_names;
-		open (HS,"<$HSfile") or die print LOG "\t    ERROR - can not open file $HSfile $!";
+		open (HS,"<$HSfile") or die print $logone_fh "\t    ERROR - can not open file $HSfile $!";
 		while (<HS>) { 
 			chomp (my $line = $_);
 			my @line = split(/\s+/,$line);
@@ -362,20 +376,20 @@ until ($ok == $randnb) { #big loop
 		}
 		close HS;
 		
-		print LOG "\t--- parsing $HSfile in progress...\n";
+		print $logone_fh "\t--- parsing $HSfile in progress...\n";
 		
 		# If one anchor doesn't have a hit
 		unless ((exists $gentwo{5}) && (exists $gentwo{3}) && (exists $genthree{5}) && (exists $genthree{3})) {
-			#print LOG "\t    one anchor = not hit in gen2 $IDgen2\n" unless ($gentwo{5} && $gentwo{3});
-			#print LOG "\t    one anchor = not hit in gen3 $IDgen3\n" unless ($genthree{5} && $genthree{3});
+			#print $logone_fh "\t    one anchor = not hit in gen2 $IDgen2\n" unless ($gentwo{5} && $gentwo{3});
+			#print $logone_fh "\t    one anchor = not hit in gen3 $IDgen3\n" unless ($genthree{5} && $genthree{3});
 			$failed_checks_ref->{$r}++;
 			next REGIONS;
 		}
 		
 		# check same target
 		if (($gentwo{5}->[1] ne $gentwo{3}->[1]) || ($genthree{5}->[1] ne $genthree{3}->[1])) {
-			#print LOG "\t    not same target in gen2 $IDgen2\n" if ($gentwo{5}->[1] ne $gentwo{3}->[1]);
-			#print LOG "\t    not same target in gen3 $IDgen3\n" if ($genthree{5}->[1] ne $genthree{3}->[1]);
+			#print $logone_fh "\t    not same target in gen2 $IDgen2\n" if ($gentwo{5}->[1] ne $gentwo{3}->[1]);
+			#print $logone_fh "\t    not same target in gen3 $IDgen3\n" if ($genthree{5}->[1] ne $genthree{3}->[1]);
 			$failed_checks_ref->{$r}++;
 			next REGIONS;
 		}
@@ -384,14 +398,14 @@ until ($ok == $randnb) { #big loop
 		
 		# Check anchor sizes < $a_max_len (150%)
 		if (($gentwo{5}->[3] - $gentwo{5}->[2] +1 > $a_max_len) || ($gentwo{3}->[3] - $gentwo{3}->[2] +1 > $a_max_len) || ($genthree{5}->[3] - $genthree{5}->[2] +1 > $a_max_len) || ($genthree{3}->[3] - $genthree{3}->[2] +1 > $a_max_len)) {
-			#print LOG "\t    One anchor is > 150nt\n";
+			#print $logone_fh "\t    One anchor is > 150nt\n";
 			$failed_checks_ref->{$r}++;
 			next REGIONS;
 		}
 		
 		#check highest enough
 		if (($gentwo{5}->[5] > $maxratio) || ($gentwo{3}->[5] > $maxratio) || ($genthree{5}->[5] > $maxratio) || ($genthree{3}->[5] > $maxratio)) {
-			#print LOG "\t    at least one hit did not have scores high enough\n";
+			#print $logone_fh "\t    at least one hit did not have scores high enough\n";
 			$failed_checks_ref->{$r}++;
 			next REGIONS;
 		}
@@ -405,12 +419,12 @@ until ($ok == $randnb) { #big loop
 		# check that distance between anchors is not <0
 		my $strand_gen2 = $gentwo{5}->[0];
 		my ($undef2,$start_gen2,$end_gen2,$dist_gen2) = DelGet::check_anchor_dist($strand_gen2,%gentwo);
-		print LOG "\t\tERROR: strand_gen2 undefined? (= $strand_gen2)\n" if ($undef2 == 1);
+		print $logone_fh "\t\tERROR: strand_gen2 undefined? (= $strand_gen2)\n" if ($undef2 == 1);
 		next REGIONS if ($dist_gen2 < 0);
 		
 		my $strand_gen3 = $genthree{5}->[0];
 		my ($undef3,$start_gen3,$end_gen3,$dist_gen3) = DelGet::check_anchor_dist($strand_gen3,%genthree);
-		print LOG "\t\tERROR: strand_gen3 undefined? (= $strand_gen3)\n" if ($undef3 == 1);
+		print $logone_fh "\t\tERROR: strand_gen3 undefined? (= $strand_gen3)\n" if ($undef3 == 1);
 		next REGIONS if ($dist_gen3 < 0);
 		
 		#check assembly gaps
@@ -432,7 +446,7 @@ until ($ok == $randnb) { #big loop
 		######################################################################################################################
 		# PRINT FINAL OUTPUT
 		######################################################################################################################
-		print LOG "\t    Went through filters => printing region info in output file\n";
+		print $logone_fh "\t    Went through filters => printing region info in output file\n";
 		#				0		1		2		 3		4	 5		6
 		#	my @vals = ($strand,$t_name,$t_start,$t_end,$gen,$ratio,$score);
 		
@@ -447,72 +461,79 @@ until ($ok == $randnb) { #big loop
 			$regiongen1{5} = $Rstart if ($Rtype == 5);
 			$regiongen1{3} = $Rend if ($Rtype == 3);
 		}
-		print FINALOUT "$regname\t$gen1_5\t$gen1_3\t$anch_dist\t";
-		print REGOUT "$regname\t$RID\t$regiongen1{5}\t$regiongen1{3}\t+\t$IDgen1\t$genone_a\t.\n";
+		open($finalout_fh,">>",$finalout) or die "\t    ERROR - can not open to write $finalout $!";
+		print $finalout_fh "$regname\t$gen1_5\t$gen1_3\t$anch_dist\t";
+		open($regions_posi_fh,">>",$regions_posi) or die "\t    ERROR - can not open to write $regions_posi $!";
+		print $regions_posi_fh "$regname\t$RID\t$regiongen1{5}\t$regiongen1{3}\t+\t$IDgen1\t$genone_a\t.\n";
+		open($gen2out_fh,">>",$gen2out) or die "\t    ERROR - can not open to write $gen2out $!";
+		open($gen3out_fh,">>",$gen3out) or die "\t    ERROR - can not open to write $gen3out $!";
 		
 		# 2) Regions coords in: Genome2
 		my $dist2;
 		if ($strand_gen2 eq "+") {
 			$dist2 = $gentwo{3}->[2] - $gentwo{5}->[3] + 1;
-			print FINALOUT "5\t$gentwo{5}->[1]\t$gentwo{5}->[2]\t$gentwo{5}->[3]\t$gentwo{5}->[6]\t$gentwo{5}->[5]\t3\t$gentwo{3}->[1]\t$gentwo{3}->[2]\t$gentwo{3}->[3]\t$gentwo{3}->[6]\t$gentwo{3}->[5]\t$strand_gen2\t$dist2\t";
-			print SIMP2OUT "$dist2\n";
-			print REGOUT "$regname\t$gentwo{5}->[1]\t$gentwo{5}->[2]\t$gentwo{3}->[3]\t$strand_gen2\t$IDgen2\t$gentwo_a\t.\n";
+			print $finalout_fh "5\t$gentwo{5}->[1]\t$gentwo{5}->[2]\t$gentwo{5}->[3]\t$gentwo{5}->[6]\t$gentwo{5}->[5]\t3\t$gentwo{3}->[1]\t$gentwo{3}->[2]\t$gentwo{3}->[3]\t$gentwo{3}->[6]\t$gentwo{3}->[5]\t$strand_gen2\t$dist2\t";
+			print $gen2out_fh "$dist2\n";
+			print $regions_posi_fh "$regname\t$gentwo{5}->[1]\t$gentwo{5}->[2]\t$gentwo{3}->[3]\t$strand_gen2\t$IDgen2\t$gentwo_a\t.\n";
 		} else {
 			$dist2 = $gentwo{5}->[2] - $gentwo{3}->[3] + 1;
-			print FINALOUT "3\t$gentwo{3}->[1]\t$gentwo{3}->[2]\t$gentwo{3}->[3]\t$gentwo{3}->[6]\t$gentwo{3}->[5]\t5\t$gentwo{5}->[1]\t$gentwo{5}->[2]\t$gentwo{5}->[3]\t$gentwo{5}->[6]\t$gentwo{5}->[5]\t$strand_gen2\t$dist2\t";
-			print SIMP2OUT "$dist2\n";
-			print REGOUT "$regname\t$gentwo{5}->[1]\t$gentwo{3}->[2]\t$gentwo{5}->[3]\t$strand_gen2\t$IDgen2\t$gentwo_a\t.\n";
+			print $finalout_fh "3\t$gentwo{3}->[1]\t$gentwo{3}->[2]\t$gentwo{3}->[3]\t$gentwo{3}->[6]\t$gentwo{3}->[5]\t5\t$gentwo{5}->[1]\t$gentwo{5}->[2]\t$gentwo{5}->[3]\t$gentwo{5}->[6]\t$gentwo{5}->[5]\t$strand_gen2\t$dist2\t";
+			print $gen2out_fh "$dist2\n";
+			print $regions_posi_fh "$regname\t$gentwo{5}->[1]\t$gentwo{3}->[2]\t$gentwo{5}->[3]\t$strand_gen2\t$IDgen2\t$gentwo_a\t.\n";
 		}
 		# 3) Regions coords in: Genome3
 		my $dist3;
 		if ($strand_gen3 eq "+") {
 			$dist3 = $genthree{3}->[2] - $genthree{5}->[3] + 1;
-			print FINALOUT "5\t$genthree{5}->[1]\t$genthree{5}->[2]\t$genthree{5}->[3]\t$genthree{5}->[6]\t$genthree{5}->[5]\t3\t$genthree{3}->[1]\t$genthree{3}->[2]\t$genthree{3}->[3]\t$genthree{3}->[6]\t$genthree{3}->[5]\t$strand_gen2\t$dist3\n";
-			print SIMP3OUT "$dist3\n";
-			print REGOUT "$regname\t$genthree{5}->[1]\t$genthree{5}->[2]\t$genthree{3}->[3]\t$strand_gen3\t$IDgen3\t$genthree_a\t.\n";
+			print $finalout_fh "5\t$genthree{5}->[1]\t$genthree{5}->[2]\t$genthree{5}->[3]\t$genthree{5}->[6]\t$genthree{5}->[5]\t3\t$genthree{3}->[1]\t$genthree{3}->[2]\t$genthree{3}->[3]\t$genthree{3}->[6]\t$genthree{3}->[5]\t$strand_gen2\t$dist3\n";
+			print $gen3out_fh "$dist3\n";
+			print $regions_posi_fh "$regname\t$genthree{5}->[1]\t$genthree{5}->[2]\t$genthree{3}->[3]\t$strand_gen3\t$IDgen3\t$genthree_a\t.\n";
 		} else {
 			$dist3 = $genthree{5}->[2] - $genthree{3}->[3] + 1;
-			print FINALOUT "3\t$genthree{3}->[1]\t$genthree{3}->[2]\t$genthree{3}->[3]\t$genthree{3}->[6]\t$genthree{3}->[5]\t5\t$genthree{5}->[1]\t$genthree{5}->[2]\t$genthree{5}->[3]\t$genthree{5}->[6]\t$genthree{5}->[5]\t$strand_gen2\t$dist3\n";
-			print SIMP3OUT "$dist3\n";
-			print REGOUT "$regname\t$genthree{5}->[1]\t$genthree{3}->[2]\t$genthree{5}->[3]\t$strand_gen3\t$IDgen3\t$genthree_a\t.\n";
+			print $finalout_fh "3\t$genthree{3}->[1]\t$genthree{3}->[2]\t$genthree{3}->[3]\t$genthree{3}->[6]\t$genthree{3}->[5]\t5\t$genthree{5}->[1]\t$genthree{5}->[2]\t$genthree{5}->[3]\t$genthree{5}->[6]\t$genthree{5}->[5]\t$strand_gen2\t$dist3\n";
+			print $gen3out_fh "$dist3\n";
+			print $regions_posi_fh "$regname\t$genthree{5}->[1]\t$genthree{3}->[2]\t$genthree{5}->[3]\t$strand_gen3\t$IDgen3\t$genthree_a\t.\n";
 		}
 		$ok ++;
 		
 		#save that this reg is OK (gen1) to avoid picking any other overlapping one in case there is another loop
 		($alreadyrand_full_ref->{$RID})?($alreadyrand_full_ref->{$RID}.=",$regiongen1{3}"):($alreadyrand_full_ref->{$RID}=$regiongen1{3});
 		if ($ok == $randnb) {
-			print LOG "\t    $ok OK regions [= $randnb => exit]\n";
-			print LOG "\t\tNB, failed check after blats round $r = $failed_checks_ref->{$r}\n" if $failed_checks_ref->{$r};
-			print LOG "\t\tNB, potential inversions (anchors not same strand) of round $r = $inversions{$r}\n" if $inversions{$r};
+			print $logone_fh "\t    $ok OK regions [= $randnb => exit]\n";
+			print $logone_fh "\t\tNB, failed check after blats round $r = $failed_checks_ref->{$r}\n" if $failed_checks_ref->{$r};
+			print $logone_fh "\t\tNB, potential inversions (anchors not same strand) of round $r = $inversions{$r}\n" if $inversions{$r};
 			exit;
 		}
+		close $finalout_fh;
+		close $regions_posi_fh;
+		close $gen2out_fh;
+		close $gen3out_fh;
 	} #end loop REGION	
-	print LOG "\t    $ok OK regions [still < $randnb => going next round]\n";
-	print LOG "\t\tNB, failed check after blats round $r = $failed_checks_ref->{$r}\n" if $failed_checks_ref->{$r};
-	print LOG "\t\tNB, potential inversions (anchors not same strand) of round $r = $inversions{$r}\n" if $inversions{$r};
+	print $logone_fh "\t    $ok OK regions [still < $randnb => going next round]\n";
+	print $logone_fh "\t\tNB, failed check after blats round $r = $failed_checks_ref->{$r}\n" if $failed_checks_ref->{$r};
+	print $logone_fh "\t\tNB, potential inversions (anchors not same strand) of round $r = $inversions{$r}\n" if $inversions{$r};
 	$r++;
 	
 	#rewrite file of previous regions, using alreadyrand_full, since this hash is reinitialized and re loaded from file at each run of loop RANDOM
-	open(PREV_OUT,">$prev_reg") or die "\t    ERROR - can not open file $prev_reg $!";
+	open(my $prev_out_fh,">$prev_reg") or die "\t    ERROR - can not open to write file $prev_reg $!";
 	foreach my $prev_chr (sort keys %{$alreadyrand_full_ref}) {
 		my @already = split(",",$alreadyrand_full_ref->{$prev_chr});
 		foreach my $prev_end (@already) {
-			print PREV_OUT "$prev_chr\t$prev_end\n";
+			print $prev_out_fh "$prev_chr\t$prev_end\n";
 		}
 	}
-	close PREV_OUT;
-	
+	close $prev_out_fh;
+	close $logone_fh;
 } #end loop RANDOM	
 ######################################################################################################################
-close FINALOUT;
-close REGOUT;
-close SIMP2OUT;
-close SIMP3OUT;
-print LOG "\n---DONE---------------------------------------------------
+close $regions_posi_fh;
+close $gen2out_fh;
+close $gen3out_fh;
+print $logone_fh "\n---DONE---------------------------------------------------
  -> $ok regions
  -> see outputs in $pathtemp/ 
 ----------------------------------------------------------\n\n";
-close LOG;
+close $logone_fh;
 exit;
 
 

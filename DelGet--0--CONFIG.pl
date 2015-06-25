@@ -71,10 +71,12 @@
   $path = "./Del";
   
 # genome IDs
-# these IDs will be used to name the files and added in extracted sequences names. Don't chose something too long. 4 letters of species IDs are the best.
-  $IDgen1 = "Rmac";
-  $IDgen2 = "Hsap";
-  $IDgen3 = "Ptro";
+# these IDs will be used to name the files and added in extracted sequences names. 
+# Don't chose something too long. 4 letters of species IDs are the best, or assembly IDs such as hg38, mm10 etc. 
+# Gen 1 is the outgroup
+  $IDgen1 = "Rmac"; #-------|_
+  $IDgen2 = "Hsap"; #---|___|
+  $IDgen3 = "Ptro"; #---|
   
 ##########################################################
 # FOR SCRIPT --1--

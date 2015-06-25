@@ -40,7 +40,7 @@ use Array::Transpose::Ragged qw/transpose_ragged/;
 my $version = "v1.5";
 
 my $usage = "Usage:
-	perl <scriptname.pl> <path_to_all> <spID1,speID2,spID3>
+	perl <scriptname.pl> <path_to_all> <spID1,speID2,spID3> <log>
 
 	With:
 	<path_to_all> containing all files to be checked, with names as *.align.fa
@@ -56,10 +56,12 @@ my $usage = "Usage:
 	
 my $path = shift @ARGV or die "$usage";
 my $spIDs = shift @ARGV or die "$usage";
+my $gaplog = shift @ARGV or die "$usage";
 my @spIDs = split(/,/,$spIDs);
 
-print "Script gapfreq version $version started:\n";
-print "@spIDs\n";
+open (my $gaplog_fh,">",$gaplog) or die "\t    ERROR - can not open to write log file $gaplog $!\n";
+print $gaplog_fh "Script gapfreq version $version started:\n";
+print $gaplog_fh "@spIDs\n";
 
 ##########################################################################################################
 # Get list of files
@@ -77,11 +79,11 @@ foreach my $file (@List) {
 ##########################################################################################################
 my %totlen = ();
 foreach my $file (@Files) {
-	print "--- $file in progress\n";
+	print $gaplog_fh "--- $file in progress\n";
 	#####################################################
 	# Extract sequences of align aln files => in matrix + prep GAPOUT
 	#####################################################
-	print "    Getting sequences from alignement\n";
+	print $gaplog_fh "    Getting sequences from alignement\n";
 	my %seqs = ();
 	my $length;
 	my $aln = Bio::SeqIO->new(-file => $file, -format => "fasta") or die "Failed to create SeqIO object from $file $!\n";
@@ -98,7 +100,7 @@ foreach my $file (@Files) {
 	#####################################################
 	# Get gaps and print their coordinates (all files in same gap file => treat all gaps at the same time)
 	#####################################################
-	print "    Getting gap coordinates in files\n";
+	print STDERR "    Getting gap coordinates in files\n";
 	my %start = ();
 	my %gap_nb = ();
 	my %skipped = ();
@@ -137,7 +139,7 @@ foreach my $file (@Files) {
 		}
 	}
 }
-print "--- done\n";
+print $gaplog_fh "--- done\n";
 
 
 ##########################################################################################################
@@ -152,7 +154,7 @@ print "--- done\n";
 #	 consider same gap if overlap is >85%
 #	 this min overlap is for BOTH sense, ie if BIG gap in one specie, and a small one in the other => indep
 #	 still needs to subtract the other species' stuff, if TE insterted (or there) at deletion point. Note that TE could have been shared in the first place and deleted for real, but I prefer underestimate
-print "--- parsing gaps\n";
+print $gaplog_fh "--- parsing gaps\n";
 
 my $outgroup = "$path/_$spIDs[0].gaps.bed";
 my $gaps_sp1 = "$path/_$spIDs[1].gaps.bed";
@@ -213,14 +215,16 @@ foreach my $gapfile (@spegapfiles) {
 		$biggergaps++;
 	}
 
-	print "    $gapfile:\n";
-	print "    Total length of alignements\t$totlen{$ID}\n";
-	print "    - Total number of spe gaps 1-30nt\t$smallgaps\n";
-	print "    - Total length of spe gaps 1-30nt\t$smallgapslen\n";
-	print "    - Total number of spe gaps >30nt\t$biggergaps\n";
-	print "    - Total length of spe gaps >30nt\t$biggapslen\n";
+	print $gaplog_fh "    $gapfile:\n";
+	print $gaplog_fh "    Total length of alignements\t$totlen{$ID}\n";
+	print $gaplog_fh "    - Total number of spe gaps 1-30nt\t$smallgaps\n";
+	print $gaplog_fh "    - Total length of spe gaps 1-30nt\t$smallgapslen\n";
+	print $gaplog_fh "    - Total number of spe gaps >30nt\t$biggergaps\n";
+	print $gaplog_fh "    - Total length of spe gaps >30nt\t$biggapslen\n";
+	
 }
-print "--- done\n";
+print $gaplog_fh "--- done\n";
+close $gaplog_fh;
 ##########################################################################################################
 exit;
 

@@ -36,6 +36,8 @@
 #		- Kalign used instead of muscle for large sequences [muscle still not working]
 #   - v3.3 = 27 Jan 2015
 #       Changes for Github first upload (@INC stuff)
+#   - v3.4 = 22 Jun 2015
+#       Kalign command line issue - options were different => update
 #######################################################
 use warnings;
 use Bio::Perl;
@@ -50,7 +52,7 @@ BEGIN {
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Unique;
-my $version = "3.3";
+my $version = "3.4";
 
 my $usage = "\nUSAGE:
 	perl <scriptname.pl> <config_file> <path> <inputfile>
@@ -212,13 +214,9 @@ foreach my $seqtoalign (@RegList) {
 		my $alignlog = "$seqtoalign.align.log";
 		open ALN, ">$alnout" or die print LOG "\t!! can not create alnout file $alnout $!\n";
 		system "$ALNSOFT -in $seqtoalign -out $alnout -log $alignlog -quiet -verbose" || die print LOG "\t!! Failed running muscle: $!\n" if ($ALNSOFT =~ /[Mm]uscle/);
-		#system "$ALNSOFT -in $seqtoalign -out $alnout -log $alignlog -quiet -verbose -maxiters 2 -diags1 -sv" || die print LOG "\t!! Failed running muscle: $!\n" if ($anch_dist > 40000);
-		system "$ALNSOFT -gpo 80 -gpe 3 -tgpe 3 -bonus 0 -format fasta -quiet -in $seqtoalign -out $alnout" || die print LOG "\t!! Failed running kalign: $!\n" if ($ALNSOFT =~ /[Kk]align/);
-			#defaults are: gap open penalty      -gpo   = 217.00000000
-			#			   gap extension penalty -gpe   =  39.40000153
-			#			   terminal gap penalty  -gpe   = 292.60000610
-			#			   bonus                 -bonus = 283.00000000
-			
+		system "$ALNSOFT -quiet -i $seqtoalign -o $alnout" || die print LOG "\t!! Failed running kalign: $!\n" if ($ALNSOFT =~ /[Kk]align/);
+			#defaults are: gap open penalty      -gpo   = 6
+			#			   gap extension penalty -gpe   = 0.9			
 		close ALN;
 		unlink $alignlog;
 	} else {

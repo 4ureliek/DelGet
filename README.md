@@ -30,6 +30,9 @@ All options and paths are set in the file DelGet--0--CONFIG.pl (simple text file
 		  - anchors on genome2 and genome3 need to be < XX nt ("a_max_len" variable in CONFIG file);
 		  - anchor1 and anchor2 hits need to be on same strand
 		  - and obviously no assembly gaps in any of the regions
+		  
+	      If you need to kill the pipeline, kill FIRST the perl DelGet.pl DelGet--0--CONFIG_manipname.pl, 
+	        and then the other processes started by it
 				
 	CONFIG file :
 	   This is were you NEED to define the 3 genome locations + gap files, by editing path between the quotes.

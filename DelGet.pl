@@ -32,7 +32,7 @@ BEGIN {
 }
 use Array::Unique;
 use DelGet;
-my $version = "4.3";
+my $version = "4.4";
 
 my $changelog = "
 # UPDATES:
@@ -75,10 +75,16 @@ my $changelog = "
 #		BEGIN stuff + added some die checks
 #   - v4.3 = 20 Mar 2015
 #		chlog and few details like that
+#   - v4.4 = 13 May 2015
+#		in DelGet.pm, sub get_all_len_filtered 
+#          => if ratio = 0, put it at 1 - otherwise it can never go through when many sequences and few are asked
+#   - v4.5 = 25 Jun 2015
+#		Change i n DelGet--3--gapfreq_cat-outputs.pl so that IDs of genome can be assembly IDs without this script returning errors
+
 
 #   TO DO
 #		- config file printed by the pipeline + read by a subroutine instead
-#		- merge everything in one script that uses modules -> will be easier to kill...
+#		- merge everything in one script that uses modules
 #       - also would allow to not randomize and load a set of coordinates => interrogate specifically some regions
 #       - make is possible to use mor than 3 species as long as a tree is provided
 #       - parallelize when extract and align
@@ -113,14 +119,16 @@ PURPOSE :   General question = get medium size deletion rates
                 - anchors on genome2 and genome3 need to be < XX nt (\"a_max_len\" variable in CONFIG file);
                 - anchor1 and anchor2 hits need to be on same strand
                 - and obviously no assembly gaps in any of the regions
-				
+
+                If you need to kill the pipeline, kill FIRST the perl DelGet.pl DelGet--0--CONFIG_manipname.pl, 
+                  and then the other processes started by it
 				
 HOW TO RUN THE SCRIPT:
             perl DelGet.pl <config_file>
 
             Typically:
                 perl DelGet.pl DelGet--0--CONFIG_manipname.pl
-	
+                
 	
 IMPORTANT: CONFIG file 
             This is were you NEED to define the 3 genome locations + gap files, by editing path between the quotes.
@@ -228,15 +236,19 @@ die "\t    ERROR: $BLATSOFT does not exist?\n" if (! -e $BLATSOFT);
 die "\t    ERROR: $ALNSOFT does not exist?\n" if (! -e $ALNSOFT);
 die "\t    ERROR: $RMSOFT does not exist?\n" if (($RMSOFT ne "") && (! -e $RMSOFT));
 
+# #keep STDOUT and STDERR from buffering
+# select((select(STDERR), $|=1)[0]); #make STDERR buffer flush immediately
+# select((select(STDOUT), $|=1)[0]); #make STDOUT buffer flush immediately
+
 `mkdir $path` unless (-e $path);
 my $log = "$path/_DelGet.log";
-open(LOG, ">$log") or die "\t    ERROR - can not create log file $log $!\n";
+open(my $mainlog_fh, ">$log") or die "\t    ERROR - can not create log file $log $!\n";
 ####################################################################################################################
 # Now do runs 200 by 200; that way can be killed and prev runs will still be done
 ####################################################################################################################
 print "Pipeline started (v$version)... -> see $log for progression\nCheck here for verbose or errors\n";
 
-print LOG "--------------------------------------------------------------------------------------------------------------------
+print $mainlog_fh "--------------------------------------------------------------------------------------------------------------------
 Pipeline (v$version) started with following parameters (see config file);
 
 PART 1 = get regions
@@ -280,54 +292,54 @@ NOW RUNNING...
 # PIPELINE LOOP
 my $oktot = 0;
 until ($oktot == $randtot) { #ie total nb defined in config file
-	print LOG "$oktot regions are ok\n";
+	print $mainlog_fh "$oktot regions are ok\n";
 	#Folder for outputs, for each run; need to be provided to each script
 	my ($pathtemp,$c) = DelGet::make_out_dir($path);
-	print LOG "    Round $c -> folder Deletions.$c\n";
+	print $mainlog_fh "    Round $c -> folder Deletions.$c\n";
 	print "\n--------------------------------------------------------------------------------------------------------------------\nRound $c -> folder Deletions.$c\n";
 	
 	# 1) call script DelGet--1--get_regions.pl
 	print "\n----------------------------------------------------------\nErrors or verbose from DelGet--1--get_regions.pl...\n";
-	print LOG "----------------------------------------------------------\n   Running DelGet--1--get_regions.pl...\n";
+	print $mainlog_fh "----------------------------------------------------------\n   Running DelGet--1--get_regions.pl...\n";
 	system "perl $BIN/DelGet--1--get_regions.pl $config_file $pathtemp";
-	print LOG "   ...done\n----------------------------------------------------------\n\n";
+	print $mainlog_fh "   ...done\n----------------------------------------------------------\n\n";
 	print "\n";
 	
 	# 2) call script to extract and align
 	my $input = "$pathtemp/_OKregions.posi.tab";
 	print "\n----------------------------------------------------------\nErrors or verbose from DelGet--2--get-sev-seq_align.pl...\n";
-	print LOG "----------------------------------------------------------\nRunning DelGet--2--get-sev-seq_align.pl...\n";
+	print $mainlog_fh "----------------------------------------------------------\nRunning DelGet--2--get-sev-seq_align.pl...\n";
 	system "perl $BIN/DelGet--2--get-sev-seq_align.pl $config_file $pathtemp $input";
 	my $align_dir = "$pathtemp/_ExtractAlign";
-	print LOG "   -> see files in $align_dir\n   ...done\n----------------------------------------------------------\n\n";
+	print $mainlog_fh "   -> see files in $align_dir\n   ...done\n----------------------------------------------------------\n\n";
 	
 	# 3) if relevant, mask outputs + rewrite lowercases + analyse gaps
 	my @files = `ls $align_dir`;
 	unless ($#mask == 0) {
-		print LOG "----------------------------------------------------------\nMasking extracted sequences...\n";
+		print $mainlog_fh "----------------------------------------------------------\nMasking extracted sequences...\n";
 		for (my $i = 0; $i <= $#mask; $i++) {
 			my $lib = $mask[$i];
 			my $rm_log = "run_rm.$masking_folders[$i].log";
 			print "\n----------------------------------------------------------\nErrors or verbose from Repeat Masking and gap analysis in masked sequences...\n --- -> with $lib...\n";
-			print LOG "     -> with $lib...\n";
+			print $mainlog_fh "     -> with $lib...\n";
 			foreach my $f (@files) {
 				if ($f =~ /^reg[0-9]+-[0-9]+\.fa$/) {
 					system "perl $RMSOFT -lib $lib -e ncbi -xsmall -nolow -noisy $align_dir/$f > $align_dir/$rm_log";
 				}
 			}
-			print LOG "        ...done\n";
+			print $mainlog_fh "        ...done\n";
 		
 			mkdir my $dir_out = "$align_dir/$masking_folders[$i]";
 			my @masked = `ls $align_dir`;
 			if ("@masked" =~ /.*.fa\.masked.*/) { #rewrite, for each masking [if relevant]		
-				print LOG "        Rewriting .fa.align.fa files with masked regions as lowercases...\n";
+				print $mainlog_fh "        Rewriting .fa.align.fa files with masked regions as lowercases...\n";
 				print "\n --- Verbose and errors for rewriting .fa.align.fa files with masked regions as lowercases...\n";
 				system "perl $BIN/fasta-aln_RW-with-lc_from-RMout.pl $align_dir";
 			} else {
-				print LOG "        No masked sequences for $masking_folders[$i] masking, skip moving files and gap analysis\n\n";
+				print $mainlog_fh "        No masked sequences for $masking_folders[$i] masking, skip moving files and gap analysis\n\n";
 			}
 			if ("@masked" =~ /.*.fa\.out.*/) { #moving files even if no masked sequences [when relevant]
-				print LOG "        Moving RM output files (in $masking_folders[$i])...\n";
+				print $mainlog_fh "        Moving RM output files (in $masking_folders[$i])...\n";
 				print "\n --- Errors for moving RM output files (in $masking_folders[$i])...\n";
 				system "mv $align_dir/*.fa.out $dir_out/";
 				system "mv $align_dir/*.fa.cat* $dir_out/";
@@ -336,39 +348,39 @@ until ($oktot == $randtot) { #ie total nb defined in config file
 			}
 			if ("@masked" =~ /.*.fa\.masked.*/) { #analyze masked, for each masking 
 				print "\n --- Errors for analyzing gaps in masked sequences ($masking_folders[$i])...\n";
-				print LOG "        Analyzing gaps...\n";
+				print $mainlog_fh "        Analyzing gaps...\n";
 				system "perl $BIN/DelGet--3--gapfreq_lc-uc.pl $dir_out $IDgen1,$IDgen2,$IDgen3 > $dir_out/gapfreq.lcuc.log";
-				print LOG "        ...done\n\n";
+				print $mainlog_fh "        ...done\n\n";
 			}
 		}
-		print LOG "...masking(s) done\n----------------------------------------------------------\n\n";
+		print $mainlog_fh "...masking(s) done\n----------------------------------------------------------\n\n";
 		print "\n";
 	}	
 	
 	#analyze all
 	print "\n----------------------------------------------------------\nErrors or verbose from gap analysis in ALL sequences...\n";
 	unless (-f "$align_dir/gapfreq.log") {
-		print LOG "----------------------------------------------------------\nAnalyzing all gaps...\n";
-		system "perl $BIN/DelGet--3--gapfreq.pl $align_dir $IDgen1,$IDgen2,$IDgen3 > $align_dir/gapfreq.log";
-		print LOG "...done\n----------------------------------------------------------\n\n";
+		print $mainlog_fh "----------------------------------------------------------\nAnalyzing all gaps...\n";
+		system "perl $BIN/DelGet--3--gapfreq.pl $align_dir $IDgen1,$IDgen2,$IDgen3 $align_dir/gapfreq.log > $align_dir/gapfreq.nohup.log";
+		print $mainlog_fh "...done\n----------------------------------------------------------\n\n";
 	} else {
-		print LOG "----------------------------------------------------------\nAnalysis of all gaps already done\n   ...done\n   ----------------------------------------------------------\n\n";
+		print $mainlog_fh "----------------------------------------------------------\nAnalysis of all gaps already done\n   ...done\n   ----------------------------------------------------------\n\n";
 	}
 	#ident $oktot
 	my $nb = `ls $align_dir | grep -c .fa.align.fa`;
 	chomp $nb;
 	$oktot += $nb;
-	print LOG "\n--------------------------------------------------------------------------------------------------------------------\nRound $c done, $nb regions are analyzed => $oktot regions total\n--------------------------------------------------------------------------------------------------------------------\n";
+	print $mainlog_fh "\n--------------------------------------------------------------------------------------------------------------------\nRound $c done, $nb regions are analyzed => $oktot regions total\n--------------------------------------------------------------------------------------------------------------------\n";
 	print "\nRound $c done, $nb regions are analyzed\n--------------------------------------------------------------------------------------------------------------------\n => $oktot regions total\n--------------------------------------------------------------------------------------------------------------------\n";
 } #END OF PIPELINE LOOP
 
 # Now cat the outputs
 print "\nNow concatenating outputs";
-print LOG "\nNow concatenating outputs\n   command line = $BIN/Utilities/DelGet--3--gapfreq_cat-outputs.pl $path\n";
+print $mainlog_fh "\nNow concatenating outputs\n   command line = $BIN/Utilities/DelGet--3--gapfreq_cat-outputs.pl $path\n";
 system "perl $BIN/Utilities/DelGet--3--gapfreq_cat-outputs.pl $path";
 print "...done\n--------------------------------------------------------------------------------------------------------------------\n";
-print LOG "...done\n--------------------------------------------------------------------------------------------------------------------\n";
-close LOG;
+print $mainlog_fh "...done\n--------------------------------------------------------------------------------------------------------------------\n";
+close $mainlog_fh;
 exit;
 
 

@@ -81,14 +81,17 @@ sub get_tot_len_filtered {
 			$GenLen += $len if ($len > ($minlen-2));;
 		}
 		print $len_fh $GenLen;
+		close $len_fh;
 	} else {
 		print $log_fh "\t\tTotal length of genome for scaffolds > $minlen has been previously calculated ($lengthfile exists)\n";
 		open (my $len_fh2, "<", $lengthfile) or die print $log_fh "ERROR: could not open $lengthfile $!\n";
 		while (<$len_fh2>) {
 			$GenLen = $_;
-		}	
+		}
+		close $len_fh2;
 	}
 	print $log_fh "\t\t => total len = $GenLen nt\n";
+	close $log_fh;
 	return($GenLen);
 }
 #----------------------------------------------------------------------------
@@ -96,7 +99,7 @@ sub get_tot_len_filtered {
 
 #----------------------------------------------------------------------------
 # Get all lengths of the genome - includes check steps to avoid repeating this if length already calculated
-# => my ($geninfos) = DelGet::get_all_len_filtered($genome,$log,$minlen,$GenLen);
+# => my ($geninfos_ref,$dbIDs) = DelGet::get_all_len_filtered($genone,$log,$minlen,$totlength,$infofile,$randtot);
 # 	 note that log file need to be closed in the main before calling the subroutine, and reopened after
 #----------------------------------------------------------------------------
 sub get_all_len_filtered {
@@ -134,12 +137,14 @@ sub get_all_len_filtered {
 			#filter
 			if ($len > ($minlen-2)) {
 				my $ratio = int($randtot / $GenLen * $len);
+				$ratio = 1 if ($ratio == 0); #bug fix 2015 05 13
 				print $len_fh "$ID\t$len\t$ratio\n";
 				my @infos = ($len,$ratio);
 				$geninfos{$ID} = \@infos;
 				push(@dbIDs_filtered,$ID);
 			}
 		}
+		close $len_fh;
 	} else {
 		print $log_fh "\t\tAll lengths of scaffolds > $minlen has been previously calculated ($lengthfile exists) => loading in hash\n";
 		open (my $len_fh2, "<", $lengthfile) or die print $log_fh "ERROR: could not open $lengthfile $!\n";
@@ -149,9 +154,11 @@ sub get_all_len_filtered {
 			my @infos = ($len,$ratio);
 			$geninfos{$ID} = \@infos;
 			push(@dbIDs_filtered,$ID);
-		}	
+		}
+		close $len_fh2;
 	}
-	return(\%geninfos,@dbIDs_filtered);
+	close $log_fh;
+	return(\%geninfos,\@dbIDs_filtered);
 }
 #----------------------------------------------------------------------------
 
@@ -178,7 +185,8 @@ sub get_gaps {
 		my @gapline = split(/\t/,$line);
 		my $chr = $gapline[1];
 		(exists $gaps{$ID}{$chr})?($gaps{$ID}{$chr} = "$gaps{$ID}{$chr},$gapline[2],$gapline[3]"):($gaps{$ID}{$chr} = "$gapline[2],$gapline[3]");
-	}	
+	}
+	close $input_fh;
 	return \%gaps;
 }
 #----------------------------------------------------------------------------
@@ -225,7 +233,7 @@ sub get_previous_OKreg {
 	print $log_fh "\t    => $OKregions will be loaded to avoid overlaps\n" unless ($c == 0);
 	
 	# load OK region file unless not relevant, ie no previous runs
-	unless (($OKregions eq "no") && ($c == 0)) {#besides this situation, there will be a file to load
+	if (($c != 0) && ($OKregions ne "no")) {#besides this situation, there will be a file to load
 		open(my $prev_reg_fh, ">", $prev_reg) or die print $log_fh "\t    ERROR - can not create file $prev_reg $!";
 		print $prev_reg_fh "#chr\tstart\tend\n\n";
 		open(my $OKregions_fh, "<", $OKregions) or die print $log_fh "\t    ERROR - can not open previous _OKregions output file $OKregions $!";
@@ -245,6 +253,7 @@ sub get_previous_OKreg {
 		$r = $reg_r + 1; #reinitialize $r to this last round number +1 => still unique IDs for regions
 		print $log_fh "\t\t=> first round of this run = $r (ie last round of the previous run was $reg_r) => new regions will start at $r\n";
 	}
+	close $log_fh;
 	return $r;
 }
 #----------------------------------------------------------------------------
@@ -256,15 +265,14 @@ sub get_previous_OKreg {
 sub load_previous_OKreg {
 	my $prev_reg = shift;
 	my %alreadyrand_full = ();
-	if (-e $prev_reg) {
-		open(my $prev_reg_fh, "<", $prev_reg) or die "\t    ERROR - can not open file $prev_reg $!";
-		PREVREG_IN: while (<$prev_reg_fh>) {
-			chomp (my $line = $_);
-			next PREVREG_IN if (($line =~ /^#/) || ($line !~ /\w/));
-			my @line = split(/\t/,$line);
-			(exists $alreadyrand_full{$line[0]})?($alreadyrand_full{$line[0]} .= ",$line[1]"):($alreadyrand_full{$line[0]} = $line[1])
-		}
-	}	
+	open(my $prev_reg_fh, "<", $prev_reg) or die "\t    ERROR - can not open file $prev_reg $!";
+	PREVREG_IN: while (<$prev_reg_fh>) {
+		chomp (my $line = $_);
+		next PREVREG_IN if (($line =~ /^#/) || ($line !~ /\w/));
+		my @line = split(/\t/,$line);
+		(exists $alreadyrand_full{$line[0]})?($alreadyrand_full{$line[0]} .= ",$line[1]"):($alreadyrand_full{$line[0]} = $line[1])
+	}
+	close $prev_reg_fh;
 	return \%alreadyrand_full;
 }	
 #----------------------------------------------------------------------------
@@ -334,6 +342,8 @@ sub extract_sequences {
 		#keep coords in memory for final output
 		$gen1Infos{$anchor_name} = "$Gname\t$Gstart\t$Gend";
 	}
+	close $tempposi_fh;
+	close $log_fh;
 	return \%gen1Infos;
 }	
 #----------------------------------------------------------------------------
@@ -376,6 +386,7 @@ sub parse_blat {
 		}
 		$lc ++;
 	}
+	close $file_fh;
 	#write an output to keep track
 	my @HSfiles_temp = ();
 	foreach my $scID (sort keys %highestscore) {
@@ -386,6 +397,7 @@ sub parse_blat {
 		print $OnlyHighScore_fh "$blatline{$scID}\t$region\t$type\t$genID\tscore=\t$highestscore{$scID}\tratio_with_2nd=\t$howhighest{$scID}\n";
 	}
 	print $log_fh "\t\t-> written in $pathtemp/data_highest-scores/regXX.HighestScores.tab...\n";
+	close $log_fh;
 	return (@HSfiles_temp);
 }
 #----------------------------------------------------------------------------
