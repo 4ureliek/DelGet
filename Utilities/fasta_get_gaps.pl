@@ -2,56 +2,78 @@
 
 #######################################################
 # Author  :  Aurelie K
-# date    :  v1.0, Apr 2013
+# version :  see below
 # email   :  4urelie.k@gmail.com
 # Purpose :  Read a genome in fasta formet to get gap coordinates, with output formatted as UCSC gap track
-#			 Any stretch of Ns > XX nt will be considered as a gap [default = 100nt]
-#
-# 			 GAP FILE: http://genome.ucsc.edu/goldenPath/datorg.html
-#					   it represents a gap it has the form:
-#			           <chromosome/ctg> <start-in-ctg> <end-in-ctg> <number> N <number-of-Ns> <kind> <bridged?>
-#
 ######################################################
 use strict;
 use warnings;
 use Bio::SeqIO;
 use Getopt::Long;
 
-my $ArgN = @ARGV;
+my $scriptname = "fasta_get_gaps.pl";
+my $version = "1.1";
+my $changelog = "
+#	- v1.0 = Apr 2013
+#	- v1.1 = Jul 2016
+#           Bug fix, lower cases n were not taken in account...
+";
 
-my $usage = "\nUSAGE:
-    perl scriptname.pl [-mlen <nt>] <genome.fasta>
+
+my $usage = "\nUSAGE (version $version):
+    perl $scriptname -i <file.fasta> [-mlen <nt>] [-l] [-v] [-h]
 	
-	MANDATORY ARGUMENTS:
-	<genome.fasta> = genome or any set of fasta sequences 
+    Will output a gap file (stretches on Ns), in the format described at: 
+    http://genome.ucsc.edu/goldenPath/datorg.html
+    columns are :
+    <chromosome/ctg> <start-in-ctg> <end-in-ctg> <number> N <number-of-Ns> <kind> <bridged?>
 	
-	OPTIONAL ARGUMENTS:
-	-mlen <nt> : minimum length of a stretch of Ns to be considered as an assembly gap\n\n";
+    MANDATORY ARGUMENTS:
+    -i,--in  (STRING) = fasta file
+	
+    OPTIONAL ARGUMENTS:
+    -m,--mlen   (INT) = minimum length of a stretch of Ns to be considered as an assembly gap
+	                    Any stretch of Ns > XX nt will be considered as a gap 
+	                    [default = 100nt]
+    -v,--v     (BOOL) = print version
+    -c,--chlog (BOOL) = print change log (updates)
+    -h,--help  (BOOL) = print this usage
+\n";
 
-if ($ArgN < 1) {
-	print $usage;
-	exit;
-}
 
-my $Mlen;
-my $mlen;
-GetOptions ('mlen' => \$Mlen);
-if ($Mlen){
-	$mlen = shift @ARGV or die "$usage";
-	die "\n\tERROR: Minimum gap length (option -mlen) needs to be an integer\n$usage" if ($mlen !~ /\d/);
-} else {
-	$mlen = 100;
-}
+#-----------------------------------------------------------------------------
+#------------------------------ LOAD AND CHECK -------------------------------
+#-----------------------------------------------------------------------------
+my ($in,$v,$chlog,$help);
+my $mlen = 100;
+my $opt_success = GetOptions(
+			 	  'in=s'      => \$in,
+			 	  'm=s'       => \$mlen,
+			 	  'chlog'     => \$chlog,
+			 	  'version'   => \$v,
+			 	  'help'      => \$help,);
+
+#Check options, if files exist, etc
+die "\n --- $scriptname version $version\n\n" if $v;
+die $changelog if ($chlog);
+die "\n SOME MANDATORY ARGUMENTS MISSING, CHECK USAGE:\n$usage" if ($help || ! $in);
+die "\n -f $in is not a fasta file?\n\n" unless ($in =~ /\.fa|fasta|fas$/);
+die "\n -l $in does not exist?\n\n" if (! -e $in);
+die "\n\tERROR: Minimum gap length (option -mlen) needs to be an integer\n$usage" if ($mlen !~ /\d/);
+
+
+#-----------------------------------------------------------------------------
+#------------------------------ NOW MAIN -------------------------------------
+#-----------------------------------------------------------------------------
 
 #index genome
-my $genome = shift @ARGV or die "$usage";
-my $fasta = Bio::SeqIO->new(-file => $genome, -format => "fasta") or print LOG "ERROR: Failed to create SeqIO object from $genome $!\n";
+my $fasta = Bio::SeqIO->new(-file => $in, -format => "fasta") or print LOG "ERROR: Failed to create SeqIO object from $in $!\n";
 
 #get gaps
-my $gaps = "$genome.gaps.min$mlen.tab";
+my $gaps = "$in.gaps.min$mlen.tab";
 die "\n\tERROR: gap file already exists\n\n" if (-e $gaps);
 
-my $log = "$genome.gaps.min$mlen.log";
+my $log = "$in.gaps.min$mlen.log";
 open LOG, ">$log" or print LOG "ERROR: could not create file $log $!\n";
 print LOG "Extracting gaps of:\n\n";
 
@@ -67,6 +89,7 @@ while( my $sequence = $fasta->next_seq() ) {
 	NUCL: for (my $i = 0; $i <= $#seq; $i++){
 		#go to next nt if this is not a gap to extend or first nt after a gap
 		my $nt = $seq[$i];
+		$nt=uc($nt);
 		next NUCL if (($nt ne "N") && ($Nlen == 0));
 		
 		#loop on seq, if N => N start, then if following is N carry on until stops => Nend = Store in %gaps with ID = $Nstart

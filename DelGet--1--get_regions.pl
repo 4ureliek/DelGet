@@ -49,6 +49,9 @@
 #       Set counter $failed_anchor_ref->{$r} to 0
 #		in DelGet.pm, sub get_all_len_filtered 
 #          => if ratio = 0, put it at 1 - otherwise it can never go through when many sequences and few are asked
+#   - v3.4 = 26-27 July 2016
+#       Bug fix in loading gaps (suroutine get_gaps, only last genome was loaded
+#       Also the -- for the ratio was before filters => was going down before a succesfull region was picked
 ##########################################################
 use strict;
 use warnings;
@@ -64,7 +67,7 @@ BEGIN {
 }
 use Array::Unique;
 use DelGet;
-my $version = "v3.3";
+my $version = "v3.4";
 
 ####################################################################################################################
 # Usage and load config file
@@ -83,36 +86,11 @@ my $pathtemp = shift @ARGV or die "$usage $!\n" ;
 #################################################################
 # Variables and names
 #################################################################
-# Initialize configuration file variables [see config_file]
-our $a_per_round;
-our $randtot;
-our $randnb;
-our $a_max_len;
-our $minlen;
-our $anch_dist; 
-our $anch_len;
-our $maxratio;
-our $mingaplen;
-our $BLATSOFT;
-our $script_path;
-our $path;
-our $genone;
-our $gentwo;
-our $genthree;
-our $genone_a;
-our $gentwo_a;
-our $genthree_a;
-our $IDgen1;
-our $IDgen2;
-our $IDgen3;
-our $gapone;
-our $gaptwo;
-our $gapthree;
-our $OKregions;
-our $if_OKregions;
-
-# Load Configuration file
-require "$config_file";
+# Load config file
+my $cf = DelGet::load_config($config_file);
+#temporary fix until I replace the variable values in this script
+my %cf = %{$cf};
+my ($a_max_len, $randtot, $randnb, $a_per_round, $anch_dist, $anch_len, $maxratio, $minlen, $mingaplen, $multip, $BLATSOFT, $OKregions, $if_OKregions, $ALNSOFT, $RMSOFT, $path, $genone, $gentwo, $genthree, $genone_a, $gentwo_a, $genthree_a, $IDgen1, $IDgen2, $IDgen3, $gapone, $gaptwo, $gapthree, $mask, $masking_folders) = ($cf{'a_max_len'}, $cf{'randtot'}, $cf{'randnb'}, $cf{'a_per_round'}, $cf{'anch_dist'}, $cf{'anch_len'}, $cf{'maxratio'}, $cf{'minlen'}, $cf{'mingaplen'}, $cf{'multip'}, $cf{'BLATSOFT'}, $cf{'OKregions'}, $cf{'if_OKregions'}, $cf{'ALNSOFT'}, $cf{'RMSOFT'}, $cf{'path'}, $cf{'genone'}, $cf{'gentwo'}, $cf{'genthree'}, $cf{'genone_a'}, $cf{'gentwo_a'}, $cf{'genthree_a'}, $cf{'IDgen1'}, $cf{'IDgen2'}, $cf{'IDgen3'}, $cf{'gapone'}, $cf{'gaptwo'}, $cf{'gapthree'}, $cf{'mask'}, $cf{'masking_folders'});
 
 # Get lists of files
 my @genfiles = ($gentwo,$genthree);
@@ -146,7 +124,7 @@ my $gapgen_ref;
 print $logone_fh "\t--- Dealing with...\n";
 for (my $f=0;$f<=$#gapfiles;$f++) {
 	print $logone_fh "\t    $gapfiles[$f]...\n";
-	$gapgen_ref = DelGet::get_gaps($f,$gapfiles[$f]); #access to gaps of a genome = $gapgen_ref->{$f}, with $f=0 for gen1 etc
+	$gapgen_ref = DelGet::get_gaps($gapgen_ref,$f,$gapfiles[$f]); #access to gaps of a genome = $gapgen_ref->{$f}, with $f=0 for gen1 etc #bug fix 2016 07 27 = send $gapgen_ref to the sub
 }
 print $logone_fh "\t--- done\n";
 
@@ -166,7 +144,6 @@ my ($totlength) = DelGet::get_tot_len_filtered($genone,$log,$minlen);
 #Getnb of random positions to get per sequence in hash [reference]
 my $infofile = "$path/$genone_name.rlen$anch_dist.alen$anch_len.$randtot"."rand.infos.tab";
 my ($geninfos_ref,$dbIDs_ref) = DelGet::get_all_len_filtered($genone,$log,$minlen,$totlength,$infofile,$randtot);
-
 open($logone_fh, ">>$log") or die "\t    ERROR - can not open to write log file $log $!\n";
 print $logone_fh "\t--- done\n";
 
@@ -177,11 +154,11 @@ print $logone_fh "\t--- done\n";
 #number of rounds [will be re-initialized to last previous round if there is $OKregions file loaded]
 my $r = 1;
 
-print $logone_fh "\n---STARTING LOOPS-----------------------------------------\n";
-
 ###########################################################
 # DEAL WITH PREVIOUS OUTPUT IF NEEDED
 ###########################################################
+print $logone_fh "\n---PREP FILES---------------------------------------------\n";
+
 # Put previously randomized regions in a file instead, where new ones will be appended too, to avoid issue of buffering
 my $prev_reg = "$pathtemp/_OKregions.previous-coords.tab";
 close $logone_fh;
@@ -227,6 +204,9 @@ mkdir ($blats, 0755) or die "\t    ERROR - Couldn't mkdir $blats $!";
 ###########################################################
 # LOOPS
 ###########################################################
+open($logone_fh,">>",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
+print $logone_fh "\n---STARTING LOOPS-----------------------------------------\n";
+close $logone_fh;
 #keep track of what was already pick [file $prev_reg will be loaded in it if previous stuff]
 my %alreadyrand = ();
 #checking values
@@ -237,6 +217,9 @@ my %inversions = ();
 #Now loop
 until ($ok == $randnb) { #big loop
 	#re open where previous positions are and load them => avoid overlaps [hash ref]
+	open($logone_fh,">>",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
+	print $logone_fh "\n\t---LOADING PREVIOUS OK REG----------------------------\n" unless (! -e $prev_reg);
+	close $logone_fh;
 	my $alreadyrand_full_ref = DelGet::load_previous_OKreg($prev_reg) unless (! -e $prev_reg);
 	
 	#keep in mind when something was already randomized to avoid overlaps => reinitialize every time there is randomization
@@ -245,7 +228,6 @@ until ($ok == $randnb) { #big loop
 	#now carry on
 	open($logone_fh,">>",$log) or die "\t    ERROR - can not open to write log file $log $!\n";
 	print $logone_fh "\n---> round $r\n";
-	print $logone_fh "\t---RANDOMIZATION--------------------------------------\n";
 	my $tempposi = "$pathtemp/data_anchors-posi-fa-blatout/$r.posi.gen1.tab";
 	my $tempposifh;
 	print $logone_fh "\t--- getting $a_per_round random positions for this round...\n";
@@ -255,17 +237,16 @@ until ($ok == $randnb) { #big loop
 		#Randomize		
 		#(note, @dbIDs here only contains IDs that went through filter - check sub)
 		my @dbIDs = @{$dbIDs_ref};
-		my $rdmIDposi = int(rand($#dbIDs));
+		my $rdmIDposi = int(rand($#dbIDs)); 
 		my $rdmID = $dbIDs[$rdmIDposi];
 		my $ratio = $geninfos_ref->{$rdmID}[1]; #corresponds to nb of random positions to do here, weighten on length
 		my $size = $geninfos_ref->{$rdmID}[0] - ($minlen-2); #-2 bc +1 before, and bc minlen will be added to all values	
 		if (($ratio < 1) || ($size < 1)) { #shouldn't happen since now IDs are only the ones of contigs larger than $minlen, but just in case keep this
 			$failed_anchor_ref->{$r}++;
-			#print $logone_fh "ratio_or_size<1=>next\t";
+			#print $logone_fh "ratio_or_size<1=>next\n";
 			next RDMPOSI;
 		}	
 		my $three_end = int(rand($size)) + 1 + ($minlen-2); #get in base1
-		$geninfos_ref->{$rdmID}->[1]--; #since there was 1 random done here, remove 1
 
 		# get other coordinates and store the end
 		my $three_start = $three_end - $anch_len + 1; #len of anchor = 100nt
@@ -289,7 +270,7 @@ until ($ok == $randnb) { #big loop
 		}
 		# => not overlapping with previous stuff => OK to continue 
 		
-		#4) Checking assembly gaps; start and end storred this time b/c size of gaps may change
+		#4) Checking assembly gaps; start and end storred this time b/c size of gaps may change		
 		($ifnextrand) = DelGet::check_overlap_gap($gapgen_ref->{0}->{$rdmID},$three_end,$five_start) if (exists $gapgen_ref->{0}->{$rdmID});
 		if ($ifnextrand eq "yes") {
 			$failed_anchor_ref->{$r}++;
@@ -303,6 +284,8 @@ until ($ok == $randnb) { #big loop
 		print $tempposifh "reg".$r."-".$i."#3"."\t$rdmID\t$three_start\t$three_end\n";
 		$i++;
 		close $tempposifh;
+		#since there was 1 random succesful for this one, remove 1 #Moved here bug fix 2016 07 27
+		$geninfos_ref->{$rdmID}->[1]--;
 	}
 	print $logone_fh "\t\tNB, failed randomizations round $r = $failed_anchor_ref->{$r}\n";
 	print $logone_fh "\t--- done\n";

@@ -52,8 +52,8 @@ BEGIN {
 	unshift(@INC, "$BIN/Lib");
 }
 use Array::Unique;
+use DelGet;
 my $version = "3.4";
-
 my $usage = "\nUSAGE:
 	perl <scriptname.pl> <config_file> <path> <inputfile>
 	
@@ -75,21 +75,18 @@ my $file = shift or die "$usage";
 #################################################################
 # Variables and names
 #################################################################
-# Initialize needed configuration file variables [see config_file]
-our $anch_dist; 
-our $multip;
-our $ALNSOFT; #will be muscle or Kalign, based on $anch_dist
-
-# Load Configuration file
-do "$config_file";
-
+# Get the needed configuration file variables
+my $cf = DelGet::load_config($config_file);
+#temporary fix until I replace the variable values in this script
+my %cf = %{$cf};
+my ($anch_dist, $multip, $ALNSOFT) = ($cf{'anch_dist'}, $cf{'multip'}, $cf{'ALNSOFT'}); #ALNSOFT will be muscle or Kalign, based on $anch_dist
 my $max = $multip*$anch_dist;
 
 #LOG FILE
 my $log = "$pathtemp/_DelGet--2--get-sev-seq_align.log";
-open(LOG, ">$log") or die "\t    ERROR - can not create log file $log $!\n";
+open(LOG, ">$log") or die "\t    ERROR - can not open to write log file $log $!\n";
 
-# check for variables, kill this script and pipeline if some are missing
+# check for variables, kill this script if some are missing
 die print LOG "\t!! Some variables are not defined in config file\n" if ((! $ALNSOFT) || (! $anch_dist) || (! $multip));
 
 # if OK, then carry on
