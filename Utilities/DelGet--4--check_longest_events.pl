@@ -51,7 +51,7 @@ my $usage = "\nUsage [v$version]:
 my $rm = "/usr/local/RepeatMasker/RepeatMasker";
 my $lib = "/usr/local/RepeatMasker/Libraries/RepeatMaskerLib.20150807.fa";
 my $sp = "na";
-my $uc = "/home/akapusta/DelGet/Utils";
+my $uc = "/home/akapusta/DelGet";
 my ($in,$d,$help,$chlog,$v);
 GetOptions ('in=s'      => \$in,  
             'dir'       => \$d, 
