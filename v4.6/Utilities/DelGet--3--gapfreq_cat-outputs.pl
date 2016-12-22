@@ -16,6 +16,8 @@
 #       avoid useless errors when no masked stuff in the first place
 #  - v1.4 = 25 Jun 2015
 #       See bug fix flag; allow numbers in the IDs of the genomes (ex. use of assembly IDs possible...!)
+#  - v1.5 = 22 Dec 2016
+#       Avoid crashing if it is in the align step, just skip that last folder	
 ##########################################################
 use strict;
 use warnings;
@@ -63,10 +65,12 @@ my @RMout = ();
 my $maskednb = 0;
 my $i = 0;
 print "\n --- Processing gapfreq results...\n";
-foreach my $EAdir (@EAdir) {
+EADIR: foreach my $EAdir (@EAdir) {
 	chomp $EAdir;
 	$EAdir =~ s/\/$//;
 	print "     -> $EAdir\n";
+	print STDERR "        skipping ($EAdir/gapfreq.log does not exist; likely still aligning)\n" unless (-e $EAdir."/gapfreq.log");
+	next EADIR unless (-e $EAdir."/gapfreq.log");
 	#If first folder
 	if ($i == 0){
 		#get the 2 species
