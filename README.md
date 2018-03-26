@@ -1,58 +1,54 @@
-#DelGet
+# DelGet
 
-###SYNOPSIS: 
-	This code will find micro- and midsize deletions (using gaps of 1-30 nt and >30 nt respectively)
-	between orthologous regions of 2 or more species.
-	
-	The two final outputs (for 1-30 nt and >30 nt) will contain these columns:
-	
-	`count	amount	aln_len	%_of_aln	del_nt/10kb`
-	
-	A rate can be obtained for the branch by dividing 'del_nt/10kb' by the corresponding My.
+### SYNOPSIS: 
+This code will find micro- and midsize deletions (using gaps of 1-30 nt and >30 nt respectively) between orthologous regions of 3 or more species.
 
-	Important:
+The two final outputs (for 1-30 nt and >30 nt) will contain these columns:
+
+	count	amount	aln_len	%_of_aln	del_nt/10kb
 	
-	See the v4.6 directory for the code and readme of the version used to generate the data in [Kapusta, Suh and Feschotte (2017) PNAS (doi: 10.1073/pnas.1616702114)](http://www.pnas.org/content/114/8/E1460.full) ([see also on BioRxiv](http://biorxiv.org/content/early/2016/10/16/081307))
+A rate can be obtained for the branch by dividing 'del_nt/10kb' by the corresponding My.
+
+#### Important:	
+
+See the v4.6 directory for the code and readme of the version used to generate the data in [Kapusta, Suh and Feschotte (2017) PNAS](http://www.pnas.org/content/114/8/E1460.full) ([see also on BioRxiv](http://biorxiv.org/content/early/2016/10/16/081307))
 	
-	This current version now supports more than 3 species, which means that the gap analysis has changed (it is the same as the one used for (MAFmicrodel)[https://github.com/4ureliek/MAF_parsing/tree/master/MAFmicrodel])
+This current version now supports more than 3 species, which means that the gap analysis has changed (it is the same as the one used for [MAFmicrodel](https://github.com/4ureliek/MAF_parsing/tree/master/MAFmicrodel))
 	
-###USAGE: 
+### USAGE: 
  Regions analyzed can be:
    1) loaded from a file (only Repeat Masker .out files for now) 
    2) chosen randomly in one of the species (see config files for numbers, length, etc)
    
  All options and paths are set in a config file, that can be obtained by running: 
  
- `perl DelGet.pl -c configfile.txt`
+	perl DelGet.pl -c configfile.txt
     
  This is were you NEED to define parameters, software and file locations, etc, by editing any line that does not start with a # and has a =.
       
  For more info about the config file and the outputs and/or if you have never used this pipeline, type:
 
- `perl DelGet.pl -h`
+	perl DelGet.pl -h
 
  Once the config file is edited, typically:
  
-    `perl $scriptname DelGet.manipname.txt`
-    
-    (running with nohup is best: `nohup perl DelGet.pl DelGet.manipname.txt > DelGet.manipname.log`)
+	perl $scriptname DelGet.manipname.txt
+	(running with nohup is best: nohup perl DelGet.pl DelGet.manipname.txt > DelGet.manipname.log)
 	
-###REQUIREMENTS:
-`   (already in Lib) Perl Array::Unique = https://metacpan.org/source/SZABGAB/Array-Unique-0.08/lib/Array/Unique.pm
-    (already in Lib) Perl Array::Transpose::Ragged = https://metacpan.org/pod/Array::Transpose::Ragged
-    Blat = http://genome.ucsc.edu/FAQ/FAQblat.htmlblat3
-    Muscle = http://www.drive5.com/muscle/downloads.htm
-    Kalign = http://msa.sbc.su.se/cgi-bin/msa.cgi?mode=downloads (if large regions to align, muscle crashes)`
+### REQUIREMENTS:
+	(already in Lib) Perl Array::Unique = https://metacpan.org/source/SZABGAB/Array-Unique-0.08/lib/Array/Unique.pm
+	(already in Lib) Perl Array::Transpose::Ragged = https://metacpan.org/pod/Array::Transpose::Ragged 
+	Blat = http://genome.ucsc.edu/FAQ/FAQblat.htmlblat3   
+	Muscle = http://www.drive5.com/muscle/downloads.htm   
+	Kalign = http://msa.sbc.su.se/cgi-bin/msa.cgi?mode=downloads (if large regions to align, muscle crashes)
 
-###CITATION:
-    `[Kapusta, Suh and Feschotte (2017) PNAS (doi: 10.1073/pnas.1616702114)](http://www.pnas.org/content/114/8/E1460.full)`
-    
-    and
-    
-    `DelGet.pl vX.X, available at https://github.com/4ureliek/DelGet`
+### CITATION:
+	[Kapusta, Suh and Feschotte (2017) PNAS (doi: 10.1073/pnas.1616702114)](http://www.pnas.org/content/114/8/E1460.full)   
+	and  
+	DelGet.pl vX.X, available at https://github.com/4ureliek/DelGet
 
-###OUTPUTS
-`       0. Main log file: <path>_DelGet.log
+### OUTPUTS
+    0. Main log file: <path>_DelGet.log
       Steps are detailed, as well as files names, etc.
 
     1.'Get regions' step 
@@ -95,10 +91,10 @@
          <path>_30-x_nt.tab
       with similar columns as the intermediate outputs in Deletions.X folders.
       It is also possible to obtain preliminary data using the Util script DelGet_cat-outputs.pl
-`
 
-###STEPS: 
-`    I. Get the regions where deletions are checked: can be random or loaded from a file
+
+### STEPS: 
+    I. Get the regions where deletions are checked: can be random or loaded from a file
        1) If they are random, then a random position is selected in the first species listed
           (if 3 species are specified and if the goal is deletion rates in the most recently diverged species,
           then the outgroup will be the species listed first - see config file) 
@@ -136,5 +132,4 @@
           - concatenate the outputs with the Util script DelGet_cat-outputs.pl
              This script can be called anytime with the directory Del as argument,
              to get preliminary results even if the runs are not done
-`
 
