@@ -1,6 +1,6 @@
 DelGet - freeze v4.6 (version used to generate the data in Kapusta, Suh and Feschotte)
 =====
-See publication: http://biorxiv.org/content/early/2016/10/16/081307
+See publication: [Kapusta, Suh and Feschotte (2017) PNAS (doi: 10.1073/pnas.1616702114)](http://www.pnas.org/content/114/8/E1460.full)
 
 Get micro and medium deletions specific to 2 closely related species after their split.
 All options and paths are set in the file DelGet--0--CONFIG.pl (simple text file)
