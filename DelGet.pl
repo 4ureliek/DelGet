@@ -35,7 +35,7 @@ use Acme::Tools qw(minus);
 #------------------------------------------------------------------------------
 #--- CHANGELOG & USAGE ---------------------------------------------------------
 #------------------------------------------------------------------------------
-my $VERSION = "5.1";
+my $VERSION = "5.3";
 my $SCRIPTNAME = "DelGet.pl";
 
 my $CHANGELOG;
@@ -121,20 +121,30 @@ sub set_chlog {
 #             or complete element polymorphism), OR load them 2 by 2 and use flankings of 2 features 
 #             (e.g. find illegitimate recombination between simple elements, could also be LTR/LTR recombination)
 #       If 3 species => same as DelGet.pl, get oriented gaps. If only fewer or more than 3 species, just list them/align if asked. 
-#   - v5.1 = 22 Mar 2018
+#   - v5.1 = 26 Mar 2018
 #       Major update
 #       -> Mostly, implement gap rates for more than 3 species.       
 #          So now a newick tree is directly loaded, and gap analysis is done with gap coordinates dubtractions
 #          such as MAFmicrodel. Bedtools intersectBEd: with -f 0.85 for > 30nt and -f 0.80 for 1-30
 #       -> Remerge of all code into this one file => clean up and straighten the code
-#           
+#   - v5.2 = 04 Apr 2018
+#       Bug fix in randomization stallings
+#       Bug fix in large files loaded, still need to do the blats with rounds => randnb by randnb
+#       Bug fix TOTLEN
+#       Use a 1 liner for the fasta 1 line rewriting
+#       Fixed formatting of _OKregions.tab [that bug had pretty drastic consequences]
+#       Bug fix loading previous _OKregions.cat.tab
+#   - v5.3 = 08 May 2018
+#       Couple of changes in the kill switch loops [but scripts are still stalling]
+#       Re-implemented the change of v 3.4 => Skip the nucleotide in situations like: TGC-------A---TGC,
+#          e.g. gap opening is - after the C and gap ending is - before the T (but length is still good)
 \n";
 #   TO DO
 #       - clean up sub after each round, to delete blat outputs and highscores that didn't pass filters, unless --debug set
 #         also add many more err messages if --debug is set
 #       - reintegrate the masking possibility, but fix the length of aln: aln with masked regions, not complete total length...!
-#       - detect new insertions... TEs?
-#       - parallelize when align regions (it seems to be the most limiting step)
+#       - detect new insertions... write them out if not alrady masked
+#       - parallelize when align regions (it seems to be quite the limiting step)
 #       - load the My from a newick tree as well and apply that to get the rates
 }
 
@@ -177,6 +187,10 @@ sub set_help {
  CITATION:
    Kapusta, Suh and Feschotte (2017) Dynamics of genome size evolution in birds and mammals
    doi: 10.1073/pnas.1616702114 (http://www.pnas.org/content/114/8/E1460.full)
+   (version 4.6 used in this paper)
+   
+   Please see at the end of the help how gaps are analysed; 
+   there is a difference between v4.6 and v5+ that will affect deletion rates 
        
  USAGE: 
    All options and paths are set in a config file, that can be obtained by running: 
@@ -277,6 +291,24 @@ sub set_help {
           - concatenate the outputs with the Util script DelGet_cat-outputs.pl
              This script can be called anytime with the directory Del as argument,
              to get preliminary results even if the runs are not done
+             
+         Notes on gap analysis:
+         1) In all available version, unique nucleotides in the middle are skipped, for example:
+           	    TGC-------A---TGC
+             Here the A is ignored, and the gap opening is - after the C and gap ending is - before the T
+             (the length of the total gap will be maintained)
+           
+         2) Overlapping gaps. When the overlap is < 80% for 1-30 and < 85% for >30nt, they are considered specific to that species.
+            In a case like this one:
+           	    outgroup ACCGTGTGTATGTGTGTGTGCGTGCGCGCGTATGTGTCTGTCTGTGTGCGTGTCTGTACGTGTATATAT
+           	    species1 ACTGTGTGTGTGTGTGTGT------------------------------GTGTCTGTGCGTGTATATAT
+           	    species2 ACTGTGTGTATGTGTGTGTG------------TGTGTGTGTGTGTCTGTGTGTCTGTGCGTGTATATAT
+           	 With v4.6, species2 has no species-specific gap and species1 has two (1nt and 17nt); the shared portion is ignored (considered as 'shared').
+           	 With v5+, both species 'keep' the full length gaps as specific, which is more 'biological'.
+           	 If this is a real biological gap, v4.6 would underestimate deletion rates; after comparing same trios of species with v4.6 and v5.3, 
+           	 it looks like this mostly affects microdeletion rates.
+           	 This could be a technical issue (sequencing of a simple repeat), but since these regions are also more prone to indels, these could be real.
+           	 Thus, it is good to keep this type of examples in mind while discussing microdeletion rates.  
 \n\n";
 }
 
@@ -443,7 +475,7 @@ get_group_parents();
 #Species to consider:
 my @SPIDS = @{$SPIDS{$MAX}}; #final list of spIDs
 my $NBSP = scalar(@SPIDS); #number of species
-print $MFH "   => $NBSP species = @SPIDS\n";
+print $MFH "     => $NBSP species = @SPIDS\n";
 my $OG;
 if ($NBSP < 3) {
 	$OG = $CF{'file'};
@@ -453,7 +485,7 @@ if ($NBSP < 3) {
 	$OG =~ s/,[0-9]+//;
 	$OG =~ s/[0-9]+,//;
 }	
-print $MFH "      With outgroup = $OG\n";
+print $MFH "        With outgroup = $OG\n";
 die "\t    ERROR - $OG is not a unique spcecies...?\n\n" if ($OG =~ /(\.|\,|\(|\))/);
 
 #------------------------------------------------------------------------------
@@ -464,28 +496,36 @@ my %DATA = ();
 #NB:
 #	$DATA{$sp}{'f'} = path/sp.fa
 #	$DATA{$sp}{'n'} = sp.fa
-
 #	$DATA{$sp}{'e'} = path/sp.to-extract.fa #just a ln -s of sp.fa
 #	$DATA{$sp}{'g'} = path/sp.fa.gaps.min50.tab (typically)
 get_genome_files_list();
+print $MFH "     ...done\n";
+
 my %INFOS = (); 
 my @DBIDS = (); #list of sequences from the outgroup
 unless ($CF{'file'}) {
-	print $MFH "   Deal with the outgroup species $OG\n";
-	print $MFH "   -> get sequence lengths and estimate number of randomizations per scaffold\n";
+	print $MFH " --- Dealing with the outgroup species $OG\n";
+	print $MFH "     -> get sequence lengths and estimate number of randomizations per scaffold\n";
 	#NB:
 	#	$DATA{$MAX}{'l'} = total length of seqs > the minlength in nt of the outgroup
 	#	$INFOS{$id} = ($len,$ratio) #for the outgroup
 	get_fa_infos();
-	print $MFH "   ...done\n";	
+	print $MFH "     ...done\n";	
 }
 
-print $MFH "\n --- Dealing with gap files...\n";
+print $MFH " --- Dealing with gap files...\n";
 get_gap_files_list();
 #Load the gap coordinates
 my %GAPS = ();
 load_gaps();
-print $MFH "   ...done\n";	
+print $MFH "     ...done\n";	
+
+my %COORDS = ();
+if ($CF{'file'}) {
+	print $MFH " --- Loading coordinates from $CF{'file'}\n";
+	load_file();
+	print $MFH "     ...done\n";	
+}
 
 #------------------------------------------------------------------------------
 #--- MAIN: PIPELINE LOOP -------------------------------------------------------
@@ -509,7 +549,6 @@ my $FAILED_ANCHOR = 0; #reset for each iterations
 my %OGINFOS = (); #outgroup infos
 my @HSFILES = (); #blat highest scores files
 my $FAILED_CHECKS = 0; #reset for each iterations
-my %COORDS = (); #if $CF{'file'}
 
 #VARIABLE FOR 'EXTRACT ALIGN':
 my $ALIGN; #directory
@@ -519,8 +558,8 @@ my %KALIGN = (); #to align some regions with kalign if too long
 #VARIABLE FOR 'ANALYZE GAPSS':
 my $GAPS; #directory
 my ($GLOG,$GFH); #files
-my %TOTLEN = (); #total lenghth of aln processed per species
-my @GAPFILES = (); #list that will contain the files to process: 
+my %TOTLEN = (); #total lenghth of aln processed per species (per round)
+my @GAPFILES = (); #list that will contain the files to process (per round)
 my ($ANC,$CURR); #for file names
 
 #MAIN LOOP: will run as long as not enough nt in alignments or if killswitch
@@ -536,6 +575,7 @@ sub main_loop {
 	local *STDERR = $MFH;
 	print $MFH "   $OKTOT nt in total length of alignments so far\n" if (! $CF{'file'} && $C > 0);	
 	my $nb = 0;
+	
 	#Folder for outputs, for each run
 	make_out_dirs(); #where $C is set
 	print $MFH "-------------------------------------------------------------------------------\n" unless ($C == 0);	
@@ -543,12 +583,19 @@ sub main_loop {
 
 	#1) Get all regions => print all stuff in $CURRDEL
 	print $MFH " --- Obtaining regions\n";
-	#Randomize
+	
+	#prep output files (print headers)
+	$OKREG   = "$CURRDEL/_OKregions.tab";
+	$PREVREG = "$CURRDEL/_OKregions.previous-coords.tab";
+	$POSI    = "$CURRDEL/_OKregions.posi.tab" if ($CF{'still_align'});
+	print $MFH " --- Prep output files\n";
+	prep_curr_out_files();
+	
 	#Put previously randomized regions in a file, where new ones will be appended too
 	$R = 1; 
 	if ($CF{'if_OKregions'} eq "no") {
 		if ($CF{'file'}) {	
-			print $MFH "       NOTE: No previous regions will be loaded (expected if anchors laoded from file)\n";
+			print $MFH "       NOTE: No previous regions will be loaded (expected if anchors loaded from file)\n";
 		} else {
 			print $MFH "       WARN: No previous regions will EVER be loaded (regions won't necessarily be independent)\n";
 		}
@@ -559,13 +606,6 @@ sub main_loop {
 		}	
 	}
 
-	#prep output files (print headers)
-	$OKREG   = "$CURRDEL/_OKregions.tab";
-	$PREVREG = "$CURRDEL/_OKregions.previous-coords.tab";
-	$POSI    = "$CURRDEL/_OKregions.posi.tab" if ($CF{'still_align'});
-	print $MFH " --- Prep output files\n";
-	prep_curr_out_files();
-
 	#Get regions
 	$OK = 0;
 	%OGINFOS = ();
@@ -575,22 +615,22 @@ sub main_loop {
 	open($RFH,">>",$RLOG) or confess "\t    ERROR - can not open to write log file $RLOG $!\n";
 	local *STDERR = $RFH;
 	my $rkswitch = 0;
-	until ($OK >= $CF{'randnb'} || $rkswitch == 5) {
+	until ($OK >= $CF{'randnb'}) { #safety loop exit if 3 rounds with no anchor that will also ++ the main killswitch
+		print $RFH "-------------------------------------------------------------------------------\n";
+		print $RFH " ROUND $C - iteration $R\n";
+		print $RFH "-------------------------------------------------------------------------------\n";
 		#anchors from the outgroup:
 		$DATA{$OG}{'posi'} = "$ANCHORS/$R.posi.$OG.tab";
 		$DATA{$OG}{'anchors'} = "$ANCHORS/$R.anchors.$OG.fa";	
 		$FAILED_ANCHOR = 0;
-		if ($CF{'file'}) {	
+		if ($CF{'file'}) {
+			#read from %COORDS and print in file
 			get_regions_from_file();
-			#edit counters to exit both until loops:
-			$nb = `wc -l < $CF{'file'}`; 
 			$OK=$CF{'randnb'};
 		} else {
-			print $RFH "-------------------------------------------------------------------------------\n";
-			print $RFH " ROUND $C - iteration $R\n";
-			print $RFH "-------------------------------------------------------------------------------\n";
 			#Load previous regions:
 			load_previous_OKreg($PREVREG) if (-e $PREVREG); #load them in %ALREADYRAND
+			#get new regions
 			get_regions();
 		}
 		if ($CF{'file'} && ! -f $POSI) {
@@ -604,12 +644,18 @@ sub main_loop {
 		parse_blat();
 		$FAILED_CHECKS = 0;
 		check_and_print(); #this is where $OK is incremented
+		#Now check if should force exit
 		if (! $CF{'file'}) {
 			$rkswitch++ if ($FAILED_CHECKS == $CF{'a_per_round'});
 			if ($rkswitch == 3) {
-				print $RFH " EXITING iteration $R of the loop to randomize regions, because none could be obtained in the last 3 iterations\n";
+				print $RFH " EXITING iteration $R (round $C) of randomizing regions, because none could be obtained in the last 3 iterations\n";
+				$KILLSWITCH++;
+				$R++;
+				return 1;
+			} else {
+				$R++;
+				next; #no need to do next steps
 			}
-			$R++;			
 		}		
 	}	
 	close $RFH;
@@ -631,6 +677,7 @@ sub main_loop {
 	
 	#Analyze gaps
 	if ($CF{'still_align'} && $CF{'analyze_gaps'}) {
+		%TOTLEN = ();
 		$GLOG = "$CURRDEL/Delget_3_analyze-gaps.log";
 		print $MFH " --- Now analyzing gaps => check log in:\n";
 		print $MFH "     $GLOG\n";
@@ -642,15 +689,23 @@ sub main_loop {
 		close $GFH;
 	}	
 	
-	#Increment count
+	#Increment counter and print log	
 	chomp($nb);
-	$OKTOT+=$nb;
+	print $MFH "ROUND $C DONE\n";
 	if ($CF{'file'}) {
-		$OKTOT=$CF{'randtot'};
+		$nb=$CF{'randnb'};
+		my $failed = $FAILED_ANCHOR+$FAILED_CHECKS;
+		print $MFH "   => $nb regions loaded and checked ($failed did not go through, see $RLOG)\n"; 
 	} else {
-		print $MFH "ROUND $C DONE, $nb nt of alignment analyzed\n";
+		print $MFH "   => $nb regions aligned\n" if ($CF{'still_align'} && ! $CF{'analyze_gaps'});
+		print $MFH "   => $nb nt of alignment analyzed this round\n" if ($CF{'still_align'} && $CF{'analyze_gaps'});
+	}	
+	if ($nb == 0) {
+		$KILLSWITCH++;
+	} else {
+		$KILLSWITCH=0; #reset if it went through
 	}
-	$KILLSWITCH++ if ($nb == 0);
+	$OKTOT+=$nb;
 	return 1;
 }
 
@@ -697,7 +752,7 @@ sub print_config {
 	print $fh "# Newick tree:\n";
 	print $fh "#   It needs to contain ONLY the species IDs and have at least 3 species to analyze gaps\n";
 	print $fh "#   You may provide a file containing the tree, or give the tree on the command line:\n";
-	print $fh "    tree = (rheMac3,(hg38,mm19)); #newick tree, with the ; at the end\n";
+	print $fh "    tree = (rheMac3,(hg38,panTro4)); #newick tree, with the ; at the end\n";
 	print $fh "#   tree = tree.nwk #file with the tree\n";
 	print $fh "\n";	
 	print $fh "# Path to genomes & gap files (the files can be symbolic links created with ln -s):\n";
@@ -724,7 +779,9 @@ sub print_config {
 	print $fh "# Set an input file to load from file. Leave blank to get regions randomly.\n";
 	print $fh "    file = \n"; 
 	print $fh "#      Can only be a Repeat Masker output file (.out at the end mandatory) for now\n";
-	print $fh "#      And has to be a masking of the outgroup, unless only 2 species are considered\n";
+	print $fh "#      And has to be a masking of the outgroup, unless only 2 species are considered,\n";
+	print $fh "#      in which case the 'outgroup' is the masked species. Rounds will be done randnb by randnb,\n";
+	print $fh "#       or 1500 by 1500 if randnb is not set.\n";
 #	print $fh "#      The format will be specified by the extension:\n";
 #	print $fh "#         end by .out for a Repeat Masker output\n"; 
 #	print $fh "#         end by .bed for a bed file, with at least 3 columns: chr \\t start \\t end \\t ID \\t...\n";
@@ -756,7 +813,7 @@ sub print_config {
 	print $fh "#   minlen = anch_dist + 2*anch_len\n";
 	print $fh " \n";
 	print $fh "----------------------------------------------------------\n";
-	print $fh "# VARIABLES FOR RANDOMIZATION (IGNORE IF FILE PROVIDED)\n";
+	print $fh "# VARIABLES FOR RANDOMIZATION (skip besides randnb if file is set)\n";
 	print $fh "----------------------------------------------------------\n";
 	print $fh "# Total length of alignment (in nt) required to end the pipeline\n";
 	print $fh "    randtot = 100000\n"; 
@@ -766,19 +823,21 @@ sub print_config {
 	print $fh "#      randtot will be use to approximate the number of randomizations per chromosomes/scaffolds (randtot / anch_dist)\n";
 	print $fh "\n";
 	print $fh "# Number per run that need to be successful before going to extracting and aligning sequences\n";
-	print $fh "    randnb = 100\n";
+	print $fh "    randnb = 50\n";
 	print $fh "#      After a while, it is possible that very little or no anchors manage to get through the filters\n";
 	print $fh "#      Running in loop allows to still get outputs and results, even if script has to be killed for that reason or any other\n";
-	print $fh "#      Just use the script DelGet_cat-outputs.pl in utilities to gather the gap lengths from the outputs\n";
+	print $fh "#      Just use the script DelGet_cat-outputs.pl in utilities to gather the gap lengths from the outputs.\n";
+	print $fh "#      This is also needed when a file is loaded, to avoid huge fasta file to blat (in this case the default is 1500)\n";
 	print $fh "\n";
 	print $fh "# Number of random positions that will be treated per round\n";
 	print $fh "# (anchor sequences extracted from outgroup, blat against target genomes, checking steps etc).\n";
 	print $fh "    a_per_round = 500\n";
 	print $fh "#      This step is repeated inside script --1-- until randnb is reached. \n";
 	print $fh "#      Blat step is a limitation in the script and requires to put genome in memory every time\n";
-	print $fh "#      therefore, if species are closely related or if assembly is good, you can lower this number, \n";
+	print $fh "#      therefore, if species are closely related or if assembly is good, you can lower this number,\n";
 	print $fh "#      but given the usual success rate even in primates, at least randnb x2 is advised.\n";
-	print $fh "#      Do x5 if less good assembly or more distant species, or if they have a lot of recent TEs for example.\n";
+	print $fh "#      Do x5 to x10 if more than 3 species, if less good assembly or more distant species,\n"; 
+	print $fh "#      or if they have a lot of recent TEs for example.\n";
 	print $fh "\n";
 	print $fh "# Length beetween anchors, in nt\n";
 	print $fh "    anch_dist = 10000 #=distance in genome1 between the 2 anchors [anchor1]<----XXnt---->[anchor2]\n";
@@ -887,7 +946,7 @@ sub load_config {
 		$CF{'r_max_len'} = 100000; #100 kb is... long enough.
 		$CF{'randtot'} = `wc -l < $CF{'file'}`;		
 		chomp($CF{'randtot'});
-		$CF{'randnb'} = $CF{'randtot'};
+		$CF{'randnb'} = 1500 if (! $CF{'randnb'});
 	} else {
 		if ($CF{'anch_dist'} < $CF{'max_muscle'}) {
 			$CF{'alnsoft'} = $CF{'muscle'};
@@ -913,7 +972,7 @@ sub load_newick_tree {
 		$CF{'tree'} = $nwck;
 	} 	
 	print $MFH " --- Species tree is as follow:\n";
-	print $MFH "   $CF{'tree'}\n";
+	print $MFH "     $CF{'tree'}\n";
 	return 1;
 }
 
@@ -1111,6 +1170,53 @@ sub load_gaps {
 }
 
 #------------------------------------------------------------------------------
+sub load_file {
+	my $file = $CF{'file'};
+	my $len = $CF{'anch_len'};
+	my $w = $CF{'window'};
+	my @list = ();
+	open(my $fh, "<", $file) or confess "\t    ERROR: SUB load_coords: could not open to write $file!\n";
+	while(defined(my $l = <$fh>)) {	
+		chomp $l;
+		my @l = ();
+		$l =~ s/^\s+//;
+		next if ($l =~ /^[Ss]core|^SW|^#/ || $l !~ /\w/);
+		@l = split(/\s+/,$l);
+		my @coords = ($l[4],$l[5],$l[6],$l[9]);			
+		push(@list,\@coords);	
+	}
+	close $fh;
+	
+	#now deal with the whole window thing - I only need the anchors' coordinates
+	$w--; #so that same window is a 0
+	my $j = 1;
+	my $c = 1;
+	my %te_per_chr = ();
+	for (my $i=0;$i<=$#list-$w;$i++) {
+		my $chr = $list[$i]->[0];
+		if (exists $te_per_chr{$chr}) {
+			$te_per_chr{$chr}++;
+		} else {
+			$te_per_chr{$chr}=0;
+		}				
+		my $en5 = $list[$i]->[1]; #end of 5' anchor
+		my $st5 = $en5 - $len+1; #start of the 5' anchor, len is really $len 
+		my $st3 = $list[$i+$w]->[2];  #start of 3' anchor; it will be the same feature if w = 1
+		my $en3 = $st3 + $len-1; #end of 3' anchor; it will be the same feature if w = 1
+		$COORDS{$c}{$chr}{$te_per_chr{$chr}}[0] = $st5;
+		$COORDS{$c}{$chr}{$te_per_chr{$chr}}[1] = $en5;
+		$COORDS{$c}{$chr}{$te_per_chr{$chr}}[2] = $st3;
+		$COORDS{$c}{$chr}{$te_per_chr{$chr}}[3] = $en3;
+		$COORDS{$c}{$chr}{$te_per_chr{$chr}}[4] = "$list[$i]->[3].$list[$i+$w]->[3]";	
+		if ($j == $CF{'randnb'}) {
+			$c++;
+		}
+		$j++;
+	}
+	return 1;
+}
+
+#------------------------------------------------------------------------------
 sub make_out_dirs {
 	until (!-d "$CF{'path'}/Deletions.$C"){
 		$C++;
@@ -1143,43 +1249,38 @@ sub get_previous_OKreg {
 	# 0		1		2		3		4		5		6		7		8		9
 	# ID	type	Gname	Gstart	Gend	type	Gname	Gstart	Gend	DIST
 	my $name = "_OKregions.tab";
-	my $nameall = "_OKregions.all.tab";
-	my $path = $CF{'path'};
-	my $OKregions = $CF{'OKregions'};
+	my $nameall = "_OKregions.cat.tab";
+	my $toload;
 	#Nothing to do with $C == 0
-	#So start with 1 = second run OR there was a Deletions.0 folder already; in both cases, get the previous OK regions
-	if ($C == 1) { 
-		if ($CF{'OKregions'} eq "auto") { 
-			#no previous file => OKregions in Deletions.0 is $OKregions
-			$OKregions = "$path/Deletions.0/$name";
-		} else { 
-			#need to cat the defined $OKregions in config file with OKregions in Deletions.0 + replace value of variable to load the correct file
-			system "cat $path/Deletions.0/$name $OKregions > $path/Deletions.0/$nameall";
-			$OKregions = "$path/Deletions.0/$nameall";
+	#So start with 1
+	if ($C != 0) {
+		if ($C == 1) { 
+			if ($CF{'OKregions'} eq "auto") {
+				#load regions from Deletions.0
+				$toload = "$CF{'path'}/Deletions.0/$name";
+			} else { 
+				#need to cat the defined regions in config file with OKregions in Deletions.0
+				$toload = "$CF{'path'}/Deletions.0/$nameall";
+				system "cat $CF{'path'}/Deletions.0/$name $CF{'OKregions'}> $CF{'path'}/Deletions.0/$nameall";			
+			}
+		} else { #more than 1 => cat the -2 nameall and new one
+			my $c_prev1 = $C - 1;
+			my $c_prev2 = $C - 2;
+			$toload = "$CF{'path'}/Deletions.$c_prev1/$nameall";
+			my $prev2;
+			if ($c_prev2 == 0) {
+				$prev2 = "$CF{'path'}/Deletions.$c_prev2/$name"; #no cat file in Deletions.0
+			} else {
+				$prev2 = "$CF{'path'}/Deletions.$c_prev2/$nameall";
+			}
+			system "cat $prev2 $CF{'path'}/Deletions.$c_prev1/$name > $toload";
 		}
-	} elsif ($C == 2){
-		my $check = $OKregions;
-		$OKregions = "$path/Deletions.1/$nameall";
-		if ($check eq "no") {
-			system "cat $path/Deletions.0/$name $path/Deletions.1/$name > $OKregions";
-		} else {
-			system "cat $path/Deletions.0/$nameall $path/Deletions.1/$name > $OKregions";
-		}
-	} elsif ($C != 0) { #more than 2 => cat prev .all.tab and new one
-		my $c_prev1 = $C - 1;
-		my $c_prev2 = $C - 2;
-		my $prev1path = "$path/Deletions.$c_prev1";
-		my $prev2path = "$path/Deletions.$c_prev2";
-		$OKregions = "$prev1path/$nameall";
-		system "cat $prev2path/$nameall $prev1path/$name > $OKregions";
-	}
-	print $MFH "       => $OKregions will be loaded to avoid overlaps\n" unless ($C == 0);
+		print $MFH "       => $toload will be loaded to avoid overlaps\n";
 	
-	# load OK region file unless not relevant, ie no previous runs
-	if ($C != 0 && $CF{'OKregions'} ne "no") { #besides this situation, there will be a file to load
+		#Now, load OK region file unless not relevant, ie no previous runs
 		open(my $pfh, ">", $PREVREG) or confess "\t    ERROR - can not open to write $PREVREG $!";
 		print $pfh "#chr\tend\n\n";
-		open(my $okfh, "<", $OKregions) or confess "\t    ERROR - can not open to read previous _OKregions output file $OKregions $!";
+		open(my $okfh, "<", $toload) or confess "\t    ERROR - can not open to read previous _OKregions output file $toload $!";
 		my $reg_r;
 		while(defined(my $l = <$okfh>)) {	
 			chomp $l;
@@ -1211,7 +1312,7 @@ sub prep_curr_out_files {
 	print $ffh "\n";
 	print $ffh "#region_ID\t";
 	foreach my $sp (@SPIDS) {
-	    print $ffh "type\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST";
+	    print $ffh "type\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST\t";
 	    #Will just have three "." values for the outgroup, it's fine
 	}
 	print $ffh "\n";
@@ -1247,27 +1348,24 @@ sub load_previous_OKreg {
 
 #------------------------------------------------------------------------------
 sub get_regions_from_file {
-	print $RFH " --- Loading coordinates from $CF{'file'}\n";
-	load_coords(); #in %COORDS
-	
 	print $RFH " --- Looping through and write positions\n";
 	my $i = 0;
-	foreach my $chr (keys %COORDS) {
-		my $coordsnb = scalar(keys %{$COORDS{$chr}});		
+	foreach my $chr (keys %{$COORDS{$R}}) {
+		my $coordsnb = scalar(keys %{$COORDS{$R}{$chr}});		
 		for (my $i=0;$i<$coordsnb;$i++) {		
 			#Check for assembly gaps; should not happen but could, if too close to one.
 			#Sub takes 3'end first and then 5'end
-			my $ifnext = check_overlap_gap($GAPS{$OG}{$chr},$COORDS{$chr}{$i}[3],$COORDS{$chr}{$i}[0]);
+			my $ifnext = check_overlap_gap($GAPS{$OG}{$chr},$COORDS{$R}{$chr}{$i}[3],$COORDS{$R}{$chr}{$i}[0]);
 			if ($ifnext eq "yes") {
 				$FAILED_ANCHOR++ ;
 				next;
 			}	
 			
-			#OK => print in posifile 
+			#OK => print in posifiles 
 			open(my $pfh,">>",$DATA{$OG}{'posi'}) or confess "\t    ERROR - can not open to write $DATA{$OG}{'posi'} $!";
-			my $regname = "reg.$chr.$COORDS{$chr}{$i}[1].$COORDS{$chr}{$i}[2]._.$COORDS{$chr}{$i}[4]";			
-			print $pfh $regname."#5\t$chr\t$COORDS{$chr}{$i}[0]\t$COORDS{$chr}{$i}[1]\n";
-			print $pfh $regname."#3\t$chr\t$COORDS{$chr}{$i}[2]\t$COORDS{$chr}{$i}[3]\n";
+			my $regname = "reg.$chr.$COORDS{$R}{$chr}{$i}[1].$COORDS{$R}{$chr}{$i}[2]._.$COORDS{$R}{$chr}{$i}[4]";			
+			print $pfh $regname."#5\t$chr\t$COORDS{$R}{$chr}{$i}[0]\t$COORDS{$R}{$chr}{$i}[1]\n";
+			print $pfh $regname."#3\t$chr\t$COORDS{$R}{$chr}{$i}[2]\t$COORDS{$R}{$chr}{$i}[3]\n";
 			$i++;
 			close $pfh;
 		}
@@ -1276,61 +1374,21 @@ sub get_regions_from_file {
 	return 1;
 }
 
-#------------------------------------------------------------------------------
-sub load_coords{
-	my $file = $CF{'file'};
-	my $len = $CF{'anch_len'};
-	my $w = $CF{'window'};
-	my @list = ();
-	open(my $fh, "<", $file) or confess "\t    ERROR: SUB load_coords: could not open to write $file!\n";
-	while(defined(my $l = <$fh>)) {	
-		chomp $l;
-		my @l = ();
-		$l =~ s/^\s+//;
-		next if ($l =~ /^[Ss]core|^SW|^#/ || $l !~ /\w/);
-		@l = split(/\s+/,$l);
-		my @coords = ($l[4],$l[5],$l[6],$l[9]);			
-		push(@list,\@coords);	
-	}
-	close $fh;
-	
-	#now deal with the whole window thing - I only need the anchors' coordinates
-	$w--; #so that same window is a 0
-	my %te_per_chr = ();
-	for (my $i=0;$i<=$#list-$w;$i++) {
-		my $chr = $list[$i]->[0];
-		if (exists $te_per_chr{$chr}) {
-			$te_per_chr{$chr}++;
-		} else {
-			$te_per_chr{$chr}=0;
-		}				
-		my $en5 = $list[$i]->[1]; #end of 5' anchor
-		my $st5 = $en5 - $len+1; #start of the 5' anchor, len is really $len 
-		my $st3 = $list[$i+$w]->[2];  #start of 3' anchor; it will be the same feature if w = 1
-		my $en3 = $st3 + $len-1; #end of 3' anchor; it will be the same feature if w = 1
-		$COORDS{$chr}{$te_per_chr{$chr}}[0] = $st5;
-		$COORDS{$chr}{$te_per_chr{$chr}}[1] = $en5;
-		$COORDS{$chr}{$te_per_chr{$chr}}[2] = $st3;
-		$COORDS{$chr}{$te_per_chr{$chr}}[3] = $en3;
-		$COORDS{$chr}{$te_per_chr{$chr}}[4] = "$list[$i]->[3].$list[$i+$w]->[3]";	
-	}	
-	return 1;
-}
-
 #-------------------------------------------------------------------------------
 sub get_regions {
 	print $RFH " --- Getting $CF{'a_per_round'} random positions\n";
 # anchors from the outgroup:
 # 	$DATA{$OG}{'posi'} = "$ANCHORS/$R.posi.$OG.tab";
-# 	$DATA{$OG}{'anchors'} = "$ANCHORS/$R.anchors.$OG.fa";	
+# 	$DATA{$OG}{'anchors'} = "$ANCHORS/$R.anchors.$OG.fa";
+	my %infos = %INFOS;
 	my $i = 0;
-	my %rand_ends = (); #save what is already randomized in hereto avoid overlaps => reinitialize every time there is randomization
+	my %rand_ends = (); #save what is already randomized in here to avoid overlaps (for next rounds it is checked with printed regions)
 	until ($i == $CF{'a_per_round'}) {
 		#Randomize using list of IDs that went through length filter
 		my $rdmIDposi = int(rand($#DBIDS)); 
 		my $rdmID = $DBIDS[$rdmIDposi];
-		my $ratio = $INFOS{$rdmID}->[1]; #corresponds to nb of random positions to do here, weightened on length
-		my $size = $INFOS{$rdmID}->[0] - ($CF{'minlen'}-2); #-2 bc +1 before, and bc minlen will be added to all values	
+		my $ratio = $infos{$rdmID}->[1]; #corresponds to nb of random positions to do here, weightened on length
+		my $size = $infos{$rdmID}->[0] - ($CF{'minlen'}-2); #-2 bc +1 before, and bc minlen will be added to all values	
 		if ($ratio < 1 || $size < 1) { #shouldn't happen since now IDs are only the ones of contigs larger than $minlen, but just in case keep this
 			$FAILED_ANCHOR++;
 			#print $RFH "ratio_or_size<1=>next\n";
@@ -1379,7 +1437,7 @@ sub get_regions {
 		$i++;
 		close $pfh;
 		#since there was 1 random succesful for this one, remove 1 #Moved here bug fix 2016 07 27
-		$INFOS{$rdmID}->[1]--;
+		$infos{$rdmID}->[1]--;
 	}
 	print $RFH "     => failed randomizations = $FAILED_ANCHOR\n";
 	return 1;	
@@ -1546,6 +1604,8 @@ sub check_and_print {
 	my $ok = 0;
 	print $RFH " --- Check each regions & print if passes the filters\n";
 	print $RFH "     e.g. if hit, if same target, if score is high enough, if same strand, if overlap gaps in assembly...\n";
+	open(my $ffh,">>",$OKREG) or confess "\t    ERROR - can not open to write $OKREG $!";
+	open(my $pfh,">>",$POSI) or confess "\t    ERROR - can not open to write $POSI $!" if ($CF{'still_align'});
 	for (my $i = 0; $i<=$#HSFILES; $i ++) {
 		my $f = $HSFILES[$i];
 		my %gen;
@@ -1574,13 +1634,12 @@ sub check_and_print {
 		$ok++;
 		
 		#OK - print now
-		print $RFH "            $reg went through filters => printing\n";
-		open(my $ffh,">>",$OKREG) or confess "\t    ERROR - can not open to write $OKREG $!";
+		print $RFH "            $reg went through filters => printing\n";	
+		#print the region ID:	
 		print $ffh "$reg\t";
-		#then for each sp: type\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST		
-		open(my $pfh,">>",$POSI) or confess "\t    ERROR - can not open to write $POSI $!" if ($CF{'still_align'});
+		#then, for each sp: type\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\ttype\tGname\tGstart\tGend\tscore\tratio_with_next_highest_score\tstrand\tDIST				
 		my ($regst,$regen,$dist);
-		foreach my $sp (@SPIDS) {
+		foreach my $sp (@SPIDS) { #outgroup is the first species of the list
 			my $out = $CURRDEL."/_$sp.dist.tab";
 			open(my $fh,">>",$out) or confess "\t    ERROR - can not open to write $out $!";	
 			if ($sp eq $OG) {
@@ -1602,19 +1661,20 @@ sub check_and_print {
 					$regen = $gen{$sp}{5}->[2];
 				}
 				$dist = $regen - $regst +1;	
-				#ok regions file
+				#OKregions file
 				print $ffh "5\t$gen{$sp}{'5'}->[0]\t$gen{$sp}{'5'}->[1]\t$gen{$sp}{'5'}->[2]\t$gen{$sp}{'5'}->[6]\t$gen{$sp}{'5'}->[5]\t";
 				print $ffh "3\t$gen{$sp}{'3'}->[0]\t$gen{$sp}{'3'}->[1]\t$gen{$sp}{'3'}->[2]\t$gen{$sp}{'3'}->[6]\t$gen{$sp}{'3'}->[5]\t";
-				print $ffh "$gen{$sp}{5}->[3]\t$dist\n";
+				print $ffh "$gen{$sp}{5}->[3]\t$dist";
 				#posi file to extract
 				print $pfh "$reg\t$gen{$sp}{'5'}->[0]\t$regst\t$regen\t$gen{$sp}{5}->[3]\t$sp\t$DATA{$sp}{'f'}\n" if ($CF{'still_align'});
 			}
 			print $fh "$dist\n";
 			close $fh;
 		}	
-		close $ffh;
-		close $pfh;	
+		print $ffh "\n";
 	}
+	close $ffh;
+	close $pfh;	
 	print $RFH "     => failed checks = $FAILED_CHECKS\n";
 	print $RFH "     => OK regions = $ok (tot round $C = $OK)\n" unless ($CF{'file'});
 	return 1;			
@@ -1777,22 +1837,14 @@ sub align_regions {
 			#Easier to look at by eye if re written on 1 line - keep original files for now			
 			if (-f $out) {
 				unlink $alog unless ($DEBUG);
-				open(my $fhi,"<",$out) or confess "\t    ERROR - could not open to read $out $!\n";
-				open(my $fho,">",$seq.".align.1l.fa") or confess "\t    ERROR - could not open to write $seq.align.1l.fa $!\n";
-				#perl -pE 'if ($_ !~ /^>/) { s/\n//; } s/>/\n>/;' $out > $seq.align.1l.fa
-				while (defined($_ = <$fhi>)) {
-					if (not $_ =~ /^>/) {
-						s/\n//;
-					}
-					s/>/\n>/;
-				}
-				continue {
-					print $fho $_;
-				}
-				close $fhi;
-				close $fho;	
+# 				#perl -pE 'if ($_ !~ /^>/) { s/\n//; } s/>/\n>/;' $out > $seq.align.1l.fa
+				`cat $out | perl -pe '/^>/ ? print "\n" : chomp' > $seq.align.1l.fa`;
 			} else {
-				print $AFH "          WARN: $out missing - check $alog if you want to see why\n";
+				if ($DEBUG) {
+					print $AFH "          WARN: $out missing - check $alog if you want to see why\n";
+				} else {
+					print $AFH "          WARN: $out missing\n";
+				}
 			}
 		}
 	}
@@ -1857,6 +1909,7 @@ sub extract_and_write_gaps {
 		# Get gaps and print their coordinates - unless the files exist
 		my %start = ();
 		my %gap_nb = ();
+		my %skipped = ();
 		for (my $n=1;$n<$length;$n++) {
 			foreach my $sp (@SPIDS) {
 				#nt for each species at each position is ($seqs{$sp}->[$n]
@@ -1867,13 +1920,20 @@ sub extract_and_write_gaps {
 				open(my $lfh,">>",$lgaps) or confess "    ERROR - can not open file $lgaps $!";
 				my $reg = $file; #reg4-164.fa.align.fa
 				$reg =~ s/\.fa\.align\.fa$//;
-				if ($seqs{$sp}->[$n] eq "-" && $seqs{$sp}->[$n-1] ne "-") { #this is a gap opening
+				if ($seqs{$sp}->[$n] eq "-" && $seqs{$sp}->[$n-1] ne "-" && $seqs{$sp}->[$n-2] ne "-") { #this is a gap opening
+				# "-" at position $n => this is a gap opening; IF $n-1 ne "-" AND IF $n-2 ne "-" [ie situation TGC-----A-----TGC]
 					$start{$sp} = $n+1;
+					$skipped{$sp}++;
 				}
-				if ($seqs{$sp}->[$n-1] eq "-" && $seqs{$sp}->[$n] ne "-" && $start{$sp}) { 
+				if ($seqs{$sp}->[$n-1] eq "-" && $seqs{$sp}->[$n] ne "-" && $start{$sp} && $seqs{$sp}->[$n+1] eq "-") { 
 				#this is a gap ending; unless gap is on begining of alignement - I don't want to count these since I don't know their length
+				#and unless it's a case like A in TGC-----A-----TGC (if one or more was seen, start coordinate was "corrected")
 					my $end = $n+1;
-					my $len = $end - $start{$sp}; #gap length
+					my $len = $end - $start{$sp};
+					if ($skipped{$sp}) {
+						$len = $len - $skipped{$sp}; #correct length
+						$skipped{$sp} = 0;
+					}	
 					if ($len > 30) {
 						$gap_nb{$sp}{'l'}++;
 						print $lfh "$reg\t$start{$sp}\t$end\t$gap_nb{$sp}{'l'}\t.\t+\t$len\t$length\n";

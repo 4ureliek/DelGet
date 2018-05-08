@@ -14,6 +14,18 @@ A rate can be obtained for the branch by dividing 'del_nt/10kb' by the correspon
 See the v4.6 directory for the code and readme of the version used to generate the data in [Kapusta, Suh and Feschotte (2017) PNAS](http://www.pnas.org/content/114/8/E1460.full) ([see also on BioRxiv](http://biorxiv.org/content/early/2016/10/16/081307))
 	
 This current version now supports more than 3 species, which means that the gap analysis has changed (it is the same as the one used for [MAFmicrodel](https://github.com/4ureliek/MAF_parsing/tree/master/MAFmicrodel))
+
+Note that the new gap analysis affects cases like this:
+	 outgroup ACCGTGTGTATGTGTGTGTGCGTGCGCGCGTATGTGTCTGTCTGTGTGCGTGTCTGTACGTGTATATAT
+     species1 ACTGTGTGTGTGTGTGTGT------------------------------GTGTCTGTGCGTGTATATAT
+     species2 ACTGTGTGTATGTGTGTGTG------------TGTGTGTGTGTGTCTGTGTGTCTGTGCGTGTATATAT
+     
+     With v4.6, species2 has no species-specific gap and species1 has two (1nt and 17nt); the shared portion is ignored (considered as 'shared').
+     With v5+, both species 'keep' the full length gaps as specific, which is more 'biological'.
+     If this is a real biological gap, v4.6 would underestimate deletion rates; after comparing same trios of species with v4.6 and v5.3, 
+     it looks like this mostly affects microdeletion rates.
+     This could be a technical issue (sequencing of a simple repeat), but since these regions are also more prone to indels, these could be real.
+     Thus, it is good to keep this type of examples in mind while discussing microdeletion rates.  
 	
 ### USAGE: 
  Regions analyzed can be:
