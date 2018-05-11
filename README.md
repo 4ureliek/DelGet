@@ -16,15 +16,18 @@ See the v4.6 directory for the code and readme of the version used to generate t
 This current version now supports more than 3 species, which means that the gap analysis has changed (it is the same as the one used for [MAFmicrodel](https://github.com/4ureliek/MAF_parsing/tree/master/MAFmicrodel))
 
 Note that the new gap analysis affects cases like this:
-	 outgroup ACCGTGTGTATGTGTGTGTGCGTGCGCGCGTATGTGTCTGTCTGTGTGCGTGTCTGTACGTGTATATAT
-     species1 ACTGTGTGTGTGTGTGTGT------------------------------GTGTCTGTGCGTGTATATAT
-     species2 ACTGTGTGTATGTGTGTGTG------------TGTGTGTGTGTGTCTGTGTGTCTGTGCGTGTATATAT
+
+	outgroup ACCGTGTGTATGTGTGTGTGCGTGCGCGCGTATGTGTCTGTCTGTGTGCGTGTCTGTACGTGTATATAT
+	species1 ACTGTGTGTGTGTGTGTGT------------------------------GTGTCTGTGCGTGTATATAT
+	species2 ACTGTGTGTATGTGTGTGTG------------TGTGTGTGTGTGTCTGTGTGTCTGTGCGTGTATATAT
      
-     With v4.6, species2 has no species-specific gap and species1 has two (1nt and 17nt); the shared portion is ignored (considered as 'shared').
+     With v4.6, species2 has no species-specific gap and species1 has two (1nt and 17nt); 
+        the shared portion is ignored (considered as 'shared').
      With v5+, both species 'keep' the full length gaps as specific, which is more 'biological'.
-     If this is a real biological gap, v4.6 would underestimate deletion rates; after comparing same trios of species with v4.6 and v5.3, 
-     it looks like this mostly affects microdeletion rates.
-     This could be a technical issue (sequencing of a simple repeat), but since these regions are also more prone to indels, these could be real.
+     If this is a real biological gap, v4.6 would underestimate deletion rates; after comparing 
+        same trios of species with v4.6 and v5.3, it looks like this mostly affects microdeletion rates.
+     This could be a technical issue (sequencing of a simple repeat), but since these regions are 
+        also more prone to indels, these could be real.
      Thus, it is good to keep this type of examples in mind while discussing microdeletion rates.  
 	
 ### USAGE: 
@@ -58,9 +61,7 @@ Note that the new gap analysis affects cases like this:
 	Kalign = http://msa.sbc.su.se/cgi-bin/msa.cgi?mode=downloads (if large regions to align, muscle crashes)
 
 ### CITATION:
-	[Kapusta, Suh and Feschotte (2017) PNAS (doi: 10.1073/pnas.1616702114)](http://www.pnas.org/content/114/8/E1460.full)   
-	and  
-	DelGet.pl vX.X, available at https://github.com/4ureliek/DelGet
+[Kapusta, Suh and Feschotte (2017) PNAS (doi: 10.1073/pnas.1616702114)](http://www.pnas.org/content/114/8/E1460.full) and DelGet.pl vX.X, available at https://github.com/4ureliek/DelGet
 
 ### OUTPUTS
     0. Main log file: <path>_DelGet.log
