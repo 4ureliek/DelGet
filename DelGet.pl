@@ -134,18 +134,21 @@ sub set_chlog {
 #       Use a 1 liner for the fasta 1 line rewriting
 #       Fixed formatting of _OKregions.tab [that bug had pretty drastic consequences]
 #       Bug fix loading previous _OKregions.cat.tab
-#   - v5.3 = 08 May 2018
+#   - v5.3 = 11 May 2018
 #       Couple of changes in the kill switch loops [but scripts are still stalling]
 #       Re-implemented the change of v 3.4 => Skip the nucleotide in situations like: TGC-------A---TGC,
 #          e.g. gap opening is - after the C and gap ending is - before the T (but length is still good)
+#       Added a --restart flag, for the code to check the last folder, delete if incomplete before running
+#          and print the info about it in the log
 \n";
-#   TO DO
+#   TO DO LIST / IDEAS
 #       - clean up sub after each round, to delete blat outputs and highscores that didn't pass filters, unless --debug set
 #         also add many more err messages if --debug is set
 #       - reintegrate the masking possibility, but fix the length of aln: aln with masked regions, not complete total length...!
 #       - detect new insertions... write them out if not alrady masked
-#       - parallelize when align regions (it seems to be quite the limiting step)
+#       - parallelize when aligning regions (it is quite a limiting step)
 #       - load the My from a newick tree as well and apply that to get the rates
+#       - call R and make some graphs + write the code...?
 }
 
 my $USAGE = "\n USAGE [v$VERSION]:
@@ -204,8 +207,14 @@ sub set_help {
         \"there are gaps in this region\", amd you expect gaps, there may be an issue with these files.
 
    Once the config file is edited, typically:
-     perl $SCRIPTNAME DelGet.manipname.txt
-     (running with nohup is best: nohup perl DelGet.pl DelGet.manipname.txt > DelGet.manipname.log)
+     nohup perl DelGet.pl DelGet.manipname.txt &
+
+   Sometimes the code stalls - if no 'recent' Del/Deletion.X folders, 
+     and if the only job still running is $SCRIPTNAME DelGet.manipname.txt
+     (or if it has been running for too long)
+     consider killing the talled job and restarting, with:
+     nohup perl $SCRIPTNAME --restart DelGet.manipname.txt &
+     The restart flag will check the last folder and delete it if needed.
 		
  OUTPUTS: 
     0. Main log file: <path>_DelGet.log
@@ -319,8 +328,9 @@ select((select(STDOUT), $|=1)[0]); #make STDOUT buffer flush immediately
 #------------------------------------------------------------------------------
 # --- OPTIONS ------------------------------------------------------------------
 #------------------------------------------------------------------------------
-my ($CONF,$DEBUG,$IFH,$CHLOG,$IFV);
+my ($CONF,$RESTART,$DEBUG,$IFH,$CHLOG,$IFV);
 GetOptions ('conf=s'  => \$CONF,
+            'restart' => \$RESTART,
             'debug'   => \$DEBUG, 
             'help'    => \$IFH,
             'log'     => \$CHLOG, 
@@ -354,7 +364,26 @@ if (-d $CF{'path'}) {
 } else {
 	open($MFH, ">", $LOG) or confess "\t    ERROR - can not open to write log file $LOG $!\n"; 
 }
-local *STDERR = $MFH;
+#local *STDERR = $MFH;
+
+#Check the last folder and delete it if needed
+my $IFDELETED;
+clean_up() if ($RESTART);
+sub clean_up {
+	my @f = `ls $CF{'path'} | grep Deletions`;
+	foreach my $f (@f) {
+		chomp($f);
+		if (! -f $CF{'path'}."/".$f."/__1-30.RESULTS.tab") {
+			system "rm -Rf $CF{'path'}/$f";
+			if ($IFDELETED) {
+				$IFDELETED.=",".$f;
+			} else {
+				$IFDELETED=$f;
+			}
+		}
+	}
+	return 1;
+}
 
 #Make output directory
 if (! -e $CF{'path'}) {
@@ -400,6 +429,13 @@ sub print_log_1 {
 		print $MFH "DEBUGGINF MODE:\n";
 		print $MFH "   - additional error messages\n";
 		print $MFH "   - temp files not deleted\n";
+	}
+	if ($RESTART && $IFDELETED) {
+		print $MFH "\n-------------------------------------------------------------------------------\n";
+		print $MFH "RESTARTING PIPELINE:\n";
+		print $MFH "   - previous folders were checked,\n"; 
+		print $MFH "     and deleted if the __*.RESULTS.tab files were missing\n";
+		print $MFH "     Deleted folders = $IFDELETED\n";
 	}
 	print $MFH "\n-------------------------------------------------------------------------------\n";
 	print $MFH "Pipeline (v$VERSION) started with following parameters loaded from $CONFIG_FILE\n";
@@ -716,11 +752,17 @@ if ($CF{'still_align'} && $CF{'analyze_gaps'}) {
 	if ($CF{'file'}) {
 		print $MFH "DONE - All $CF{'randtot'} features from $CF{'file'} were processed\n"
 	} else {
-		print $MFH "DONE - goal ($CF{'randtot'}) reached: $OKTOT nt from randomization.\n"
-	}	
-	print $MFH "Concatenate all outputs, with:\n";
-	print $MFH "      $BIN/Utils/DelGet_cat-outputs.pl $CF{'path'}\n";
-	system "perl $BIN/Utils/DelGet_cat-outputs.pl $CF{'path'}";
+		if ($KILLSWITCH == 5) {
+			print $MFH "EXITED - $OKTOT nt from randomization.\n"
+		} else {
+			print $MFH "DONE - goal ($CF{'randtot'}) reached: $OKTOT nt from randomization.\n"
+		}	
+	}
+	unless ($OKTOT == 0) {
+		print $MFH "Concatenate all outputs, with:\n";
+		print $MFH "      $BIN/Utils/DelGet_cat-outputs.pl $CF{'path'}\n";
+		system "perl $BIN/Utils/DelGet_cat-outputs.pl $CF{'path'}";
+	}
 }
 print $MFH "PIPELINE DONE\n";
 print $MFH "-------------------------------------------------------------------------------\n\n";
@@ -1920,12 +1962,12 @@ sub extract_and_write_gaps {
 				open(my $lfh,">>",$lgaps) or confess "    ERROR - can not open file $lgaps $!";
 				my $reg = $file; #reg4-164.fa.align.fa
 				$reg =~ s/\.fa\.align\.fa$//;
-				if ($seqs{$sp}->[$n] eq "-" && $seqs{$sp}->[$n-1] ne "-" && $seqs{$sp}->[$n-2] ne "-") { #this is a gap opening
+				if ($seqs{$sp}->[$n] eq "-" && $seqs{$sp}->[$n-1] ne "-" && ($n > 1 && $seqs{$sp}->[$n-2] ne "-")) { #this is a gap opening
 				# "-" at position $n => this is a gap opening; IF $n-1 ne "-" AND IF $n-2 ne "-" [ie situation TGC-----A-----TGC]
 					$start{$sp} = $n+1;
 					$skipped{$sp}++;
 				}
-				if ($seqs{$sp}->[$n-1] eq "-" && $seqs{$sp}->[$n] ne "-" && $start{$sp} && $seqs{$sp}->[$n+1] eq "-") { 
+				if ($seqs{$sp}->[$n-1] eq "-" && $seqs{$sp}->[$n] ne "-" && ($start{$sp} && $seqs{$sp}->[$n+1] eq "-")) { 
 				#this is a gap ending; unless gap is on begining of alignement - I don't want to count these since I don't know their length
 				#and unless it's a case like A in TGC-----A-----TGC (if one or more was seen, start coordinate was "corrected")
 					my $end = $n+1;

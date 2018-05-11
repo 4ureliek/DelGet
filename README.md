@@ -44,8 +44,11 @@ Note that the new gap analysis affects cases like this:
 
  Once the config file is edited, typically:
  
-	perl $scriptname DelGet.manipname.txt
-	(running with nohup is best: nohup perl DelGet.pl DelGet.manipname.txt > DelGet.manipname.log)
+	 nohup perl $scriptname DelGet.manipname.txt &
+
+ Sometimes the code stalls - if no 'recent' Del/Deletion.X folders, and if the only job still running is $SCRIPTNAME DelGet.manipname.txt (or if it has been running for too long), consider killing the talled job and restarting, with:
+ 
+     nohup perl $SCRIPTNAME --restart DelGet.manipname.txt &
 	
 ### REQUIREMENTS:
 	(already in Lib) Perl Array::Unique = https://metacpan.org/source/SZABGAB/Array-Unique-0.08/lib/Array/Unique.pm
