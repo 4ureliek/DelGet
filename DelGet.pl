@@ -207,13 +207,12 @@ sub set_help {
         \"there are gaps in this region\", amd you expect gaps, there may be an issue with these files.
 
    Once the config file is edited, typically:
-     nohup perl DelGet.pl DelGet.manipname.txt &
+     nohup perl DelGet.pl manipname.txt &
 
-   Sometimes the code stalls - if no 'recent' Del/Deletion.X folders, 
-     and if the only job still running is $SCRIPTNAME DelGet.manipname.txt
-     (or if it has been running for too long)
+   Sometimes the code stalls - if no 'recent' Del/Deletion.X folders, if the only job
+     still running is $SCRIPTNAME manipname.txt and if it has been running for too long,
      consider killing the talled job and restarting, with:
-     nohup perl $SCRIPTNAME --restart DelGet.manipname.txt &
+     nohup perl $SCRIPTNAME --restart manipname.txt &
      The restart flag will check the last folder and delete it if needed.
 		
  OUTPUTS: 
