@@ -35,7 +35,7 @@ use Acme::Tools qw(minus);
 #------------------------------------------------------------------------------
 #--- CHANGELOG & USAGE ---------------------------------------------------------
 #------------------------------------------------------------------------------
-my $VERSION = "5.3";
+my $VERSION = "5.4";
 my $SCRIPTNAME = "DelGet.pl";
 
 my $CHANGELOG;
@@ -140,6 +140,8 @@ sub set_chlog {
 #          e.g. gap opening is - after the C and gap ending is - before the T (but length is still good)
 #       Added a --restart flag, for the code to check the last folder, delete if incomplete before running
 #          and print the info about it in the log
+#   - v5.4 = 20 Aug 2018
+#       Fix HUGE bug introduced in v5.3 = gaps were skipped instead of listed...
 \n";
 #   TO DO LIST / IDEAS
 #       - clean up sub after each round, to delete blat outputs and highscores that didn't pass filters, unless --debug set
@@ -1143,9 +1145,7 @@ sub get_fa_infos {
 			$tmp{$id}=$ln;
 		}
 		close $fh;
-		
-		print $MFH "NOW PRINTING\n";
-		
+				
 		#Now print the data and get the infos
 		open (my $lfh, ">", $lout) or confess "\t    ERROR - could not open to write file $lout $!\n\n";
 		foreach my $id (keys %tmp) {
@@ -1955,34 +1955,39 @@ sub extract_and_write_gaps {
 			foreach my $sp (@SPIDS) {
 				#nt for each species at each position is ($seqs{$sp}->[$n]
 				#print in a file gap start-end couples, one per line, one file per species
-				my $sgaps = $GAPS."/".$file."$sp.gaps.1-30.bed";
-				open(my $sfh,">>",$sgaps) or confess "    ERROR - can not open file $sgaps $!";
-				my $lgaps = $GAPS."/".$file."$sp.gaps.31-x.bed";
-				open(my $lfh,">>",$lgaps) or confess "    ERROR - can not open file $lgaps $!";
 				my $reg = $file; #reg4-164.fa.align.fa
 				$reg =~ s/\.fa\.align\.fa$//;
-				if ($seqs{$sp}->[$n] eq "-" && $seqs{$sp}->[$n-1] ne "-" && ($n > 1 && $seqs{$sp}->[$n-2] ne "-")) { #this is a gap opening
-				# "-" at position $n => this is a gap opening; IF $n-1 ne "-" AND IF $n-2 ne "-" [ie situation TGC-----A-----TGC]
-					$start{$sp} = $n+1;
-					$skipped{$sp}++;
-				}
-				if ($seqs{$sp}->[$n-1] eq "-" && $seqs{$sp}->[$n] ne "-" && ($start{$sp} && $seqs{$sp}->[$n+1] eq "-")) { 
-				#this is a gap ending; unless gap is on begining of alignement - I don't want to count these since I don't know their length
-				#and unless it's a case like A in TGC-----A-----TGC (if one or more was seen, start coordinate was "corrected")
+				my $sgaps = $GAPS."/".$reg.".$sp.gaps.1-30.bed";
+				open(my $sfh,">>",$sgaps) or confess "    ERROR - can not open file $sgaps $!";
+				my $lgaps = $GAPS."/".$reg.".$sp.gaps.31-x.bed";
+				open(my $lfh,">>",$lgaps) or confess "    ERROR - can not open file $lgaps $!";				
+				if ($seqs{$sp}->[$n] eq "-") {
+					#potentially a gap opening: 
+					if ($seqs{$sp}->[$n-1] ne "-") { #only if continuing gap
+						if ($n > 1 && $seqs{$sp}->[$n-2] eq "-") { #and if not this situation: TGC-----A-----TGC]
+							$skipped{$sp}++;
+						} else {
+							$start{$sp} = $n+1;
+						}
+					}
+				} elsif ($start{$sp} && $seqs{$sp}->[$n-1] eq "-" && $seqs{$sp}->[$n+1] ne "-") { 
+				    #so not a -, position before was -, and there was a start => gap ending
+					#unless it's a case like A in TGC-----A-----TGC
 					my $end = $n+1;
 					my $len = $end - $start{$sp};
 					if ($skipped{$sp}) {
 						$len = $len - $skipped{$sp}; #correct length
-						$skipped{$sp} = 0;
-					}	
+						$skipped{$sp} = 0; #reset
+					}
+					#OK print now
 					if ($len > 30) {
 						$gap_nb{$sp}{'l'}++;
 						print $lfh "$reg\t$start{$sp}\t$end\t$gap_nb{$sp}{'l'}\t.\t+\t$len\t$length\n";
 					} else {
 						$gap_nb{$sp}{'s'}++;
 						print $sfh "$reg\t$start{$sp}\t$end\t$gap_nb{$sp}{'s'}\t.\t+\t$len\t$length\n";
-					}
-				}
+					}	
+				}			
 				close $lfh;
 				close $sfh;
 			}
